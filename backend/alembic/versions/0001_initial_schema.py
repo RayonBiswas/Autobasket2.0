@@ -1,14 +1,13 @@
 """initial schema
 
 Revision ID: 0001
-Revises: 
+Revises: (none — first migration)
 Create Date: 2026-09-19 15:41:42.459868
 
 """
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-
 from alembic import op
 
 # revision identifiers, used by Alembic.

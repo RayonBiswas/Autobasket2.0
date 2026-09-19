@@ -13,6 +13,8 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
+# The local migrations folder is also called "alembic"; without this ruff sorts the library as first-party.
+known-third-party = ["alembic"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
