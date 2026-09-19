@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routes import auth, vision
+from .routes import auth, households, inventory, seed, vision
 
 app = FastAPI(title="AutoBasket API")
 
@@ -14,6 +14,9 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
+app.include_router(households.router, prefix="/households", tags=["Households"])
+app.include_router(inventory.router, prefix="/inventory", tags=["Inventory"])
+app.include_router(seed.router, prefix="/seed", tags=["Seed"])
 app.include_router(vision.router, prefix="/vision", tags=["Vision"])
 
 

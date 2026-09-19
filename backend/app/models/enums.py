@@ -14,7 +14,9 @@ class MemberRole(StrEnum):
 
 class ProductUnit(StrEnum):
     G = "g"
+    KG = "kg"
     ML = "ml"
+    L = "l"
     PCS = "pcs"
 
 
