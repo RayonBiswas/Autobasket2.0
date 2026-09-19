@@ -45,6 +45,9 @@ VENDORS = [
 ]
 
 INITIAL_STOCK = {"milk": 0.5, "rice": 0.25, "water": 0.9}
+# Tray 1 slot positions that start out assigned and calibrated (tare = 50 g platform).
+SLOT_ASSIGNMENTS = {1: "milk", 2: "rice", 3: "water"}
+PLATFORM_TARE_GRAMS = 50.0
 
 
 @router.post("/dev")
@@ -100,7 +103,19 @@ def seed_dev(household: models.Household = Depends(current_household), db: Sessi
             db.add(tray)
             db.flush()
             for slot_pos in (1, 2, 3, 4):
-                db.add(models.Slot(tray_id=tray.id, position=slot_pos))
+                slot = models.Slot(tray_id=tray.id, position=slot_pos)
+                pname = SLOT_ASSIGNMENTS.get(slot_pos) if tray_pos == 1 else None
+                if pname:
+                    product = products[pname]
+                    slot.product_id = product.id
+                    slot.tare_grams = PLATFORM_TARE_GRAMS
+                    slot.full_grams = PLATFORM_TARE_GRAMS + (product.typical_full_grams or 1000)
+                    db.add(slot)
+                    db.flush()
+                    grams = slot.tare_grams + INITIAL_STOCK[pname] * (slot.full_grams - slot.tare_grams)
+                    db.add(models.SlotReading(slot_id=slot.id, weight_grams=round(grams, 1)))
+                else:
+                    db.add(slot)
     db.commit()
 
     for pname, fraction in INITIAL_STOCK.items():

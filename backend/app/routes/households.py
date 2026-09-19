@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from .. import models
 from ..api.deps import current_household, get_db
+from .slots import slot_view
 
 router = APIRouter()
 
@@ -56,16 +57,7 @@ def slots(household: models.Household = Depends(current_household), db: Session 
                     "tray_id": tray.id,
                     "position": tray.position,
                     "label": tray.label,
-                    "slots": [
-                        {
-                            "slot_id": s.id,
-                            "position": s.position,
-                            "product_id": s.product_id,
-                            "tare_grams": s.tare_grams,
-                            "full_grams": s.full_grams,
-                        }
-                        for s in tray.slots
-                    ],
+                    "slots": [slot_view(db, s) for s in tray.slots],
                 }
             )
     return {"trays": trays}
