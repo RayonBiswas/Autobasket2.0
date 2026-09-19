@@ -32,3 +32,41 @@ def db_session(session_factory):
         yield session
     finally:
         session.close()
+
+
+@pytest.fixture()
+def app_client(monkeypatch, session_factory):
+    """The full FastAPI app with the database swapped for the in-memory one, in dev auth mode."""
+    monkeypatch.setenv("AUTH_DEV_MODE", "1")
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+
+    from fastapi.testclient import TestClient
+
+    from app.api.deps import get_db
+    from app.main import app
+
+    def override_get_db():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+    yield TestClient(app), session_factory
+    app.dependency_overrides.clear()
+    get_settings.cache_clear()
+
+
+@pytest.fixture()
+def login():
+    """login(client, email) -> JWT, using the dev-mode code echo."""
+
+    def _login(client, email: str) -> str:
+        code = client.post("/auth/request-otp", json={"email": email}).json()["dev_code"]
+        return client.post("/auth/verify-otp", json={"email": email, "code": code}).json()["access_token"]
+
+    return _login
