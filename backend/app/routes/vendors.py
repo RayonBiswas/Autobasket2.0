@@ -1,115 +1,62 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import models
-from ..database import SessionLocal
+from ..api.deps import current_household, get_db
+from ..services.inventory import find_product
+from ..services.ranking import rank_offers
 
 router = APIRouter()
 
 
-# ==============================
-# DB Dependency
-# ==============================
+def offers_for_product(db: Session, product: models.Product) -> list[tuple[models.Vendor, models.VendorOffer]]:
+    """In-stock offers from active vendors for one product."""
+    return (
+        db.query(models.Vendor, models.VendorOffer)
+        .join(models.VendorOffer, models.VendorOffer.vendor_id == models.Vendor.id)
+        .filter(
+            models.VendorOffer.product_id == product.id,
+            models.VendorOffer.in_stock.is_(True),
+            models.Vendor.is_active.is_(True),
+        )
+        .all()
+    )
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
-
-# ==============================
-# COMPARE & RANK VENDORS
-# ==============================
-
-@router.get("/compare/{item_name}")
-def compare_item(item_name: str, db: Session = Depends(get_db)):
-
-    vendor_items = db.query(models.VendorItem).filter(
-        models.VendorItem.item_name == item_name.lower()
-    ).all()
-
-    if not vendor_items:
+@router.get("/compare/{product_name}")
+def compare_item(
+    product_name: str,
+    household: models.Household = Depends(current_household),
+    db: Session = Depends(get_db),
+):
+    product = find_product(db, product_name)
+    if product is None:
         return []
+    return rank_offers(offers_for_product(db, product))
 
-    prices = [vi.price for vi in vendor_items]
-    min_price = min(prices)
-    max_price = max(prices)
-
-    results = []
-
-    for vi in vendor_items:
-
-        vendor = db.query(models.Vendor).filter(
-            models.Vendor.id == vi.vendor_id
-        ).first()
-
-        if not vendor:
-            continue
-
-        # --------------------------
-        # Normalize rating (0–1)
-        # --------------------------
-        rating_score = vendor.rating / 5
-
-        # --------------------------
-        # Normalize price (lower price = higher score)
-        # --------------------------
-        if max_price != min_price:
-            price_score = 1 - ((vi.price - min_price) / (max_price - min_price))
-        else:
-            price_score = 1
-
-        # --------------------------
-        # FINAL SCORE (Balanced Weight)
-        # --------------------------
-        final_score = (0.4 * price_score) + (0.6 * rating_score)
-
-        results.append({
-            "vendor_id": vendor.id,
-            "vendor_name": vendor.name,
-            "rating": vendor.rating,
-            "price": vi.price,
-            "price_score": round(price_score, 2),
-            "rating_score": round(rating_score, 2),
-            "final_score": round(final_score, 2)
-        })
-
-    # Sort highest score first
-    results.sort(key=lambda x: x["final_score"], reverse=True)
-
-    return results
-
-
-# ==============================
-# SUBMIT REVIEW (Running Average)
-# ==============================
 
 @router.post("/review")
-def submit_review(vendor_id: int, new_rating: float, db: Session = Depends(get_db)):
-
-    vendor = db.query(models.Vendor).filter(
-        models.Vendor.id == vendor_id
-    ).first()
-
-    if not vendor:
-        return {"error": "Vendor not found"}
+def submit_review(
+    vendor_id: int,
+    new_rating: float,
+    household: models.Household = Depends(current_household),
+    db: Session = Depends(get_db),
+):
+    vendor = db.get(models.Vendor, vendor_id)
+    if vendor is None:
+        raise HTTPException(404, "Vendor not found")
+    if not 1 <= new_rating <= 5:
+        raise HTTPException(422, "Rating must be between 1 and 5")
 
     old_rating = vendor.rating
     old_count = vendor.review_count
-
-    # Running average formula
-    updated_rating = ((old_rating * old_count) + new_rating) / (old_count + 1)
-
-    vendor.rating = round(updated_rating, 2)
+    vendor.rating = round((old_rating * old_count + new_rating) / (old_count + 1), 2)
     vendor.review_count = old_count + 1
-
     db.commit()
 
     return {
         "message": "Review submitted",
         "old_rating": old_rating,
         "new_rating": vendor.rating,
-        "total_reviews": vendor.review_count
+        "total_reviews": vendor.review_count,
     }
