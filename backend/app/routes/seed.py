@@ -99,7 +99,7 @@ def seed_dev(household: models.Household = Depends(current_household), db: Sessi
         db.add(device)
         db.flush()
         for tray_pos in (1, 2):
-            tray = models.Tray(device_id=device.id, position=tray_pos, label=f"Tray {tray_pos}")
+            tray = models.Tray(device_id=device.id, position=tray_pos, label=f"Shelf {tray_pos}")
             db.add(tray)
             db.flush()
             for slot_pos in (1, 2, 3, 4):

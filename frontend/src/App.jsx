@@ -1,380 +1,63 @@
 import { useEffect, useState } from "react";
 import Dashboard from "./pages/Dashboard";
-import Camera from "./pages/Camera";
+import Detection from "./pages/Detection";
 import Login from "./pages/Login";
 import Slots from "./pages/Slots";
 import { clearToken, getToken } from "./services/auth";
 
-const styles = `
-  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap');
+const THEME_KEY = "ab_theme";
 
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+function readTheme() {
+  try {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === "light" || saved === "dark") return saved;
+  } catch { /* storage unavailable */ }
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
 
-  :root {
-    --bg: #0a0a0f;
-    --surface: #111118;
-    --surface2: #1a1a24;
-    --border: rgba(255,255,255,0.08);
-    --accent: #00e5ff;
-    --accent2: #7b61ff;
-    --danger: #ff4d6d;
-    --success: #00c896;
-    --warning: #ffb627;
-    --text: #f0f0f8;
-    --muted: #6b6b80;
-  }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'DM Mono', monospace;
-    min-height: 100vh;
-  }
-
-  /* ── App shell ── */
-  .app-shell {
-    display: flex;
-    min-height: 100vh;
-  }
-
-  /* ── Sidebar ── */
-  .app-sidebar {
-    width: 220px;
-    flex-shrink: 0;
-    background: var(--surface);
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    z-index: 20;
-  }
-
-  .sidebar-logo {
-    padding: 28px 22px 24px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .sidebar-logo-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 9px;
-    background: linear-gradient(135deg, var(--accent2), var(--accent));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    flex-shrink: 0;
-    box-shadow: 0 4px 14px rgba(0,229,255,0.25);
-  }
-
-  .sidebar-logo-text {
-    font-family: 'Syne', sans-serif;
-    font-weight: 800;
-    font-size: 17px;
-    letter-spacing: -0.5px;
-    line-height: 1;
-  }
-
-  .sidebar-logo-sub {
-    font-size: 9px;
-    color: var(--muted);
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    margin-top: 3px;
-  }
-
-  .sidebar-nav {
-    padding: 16px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    flex: 1;
-  }
-
-  .sidebar-section-label {
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    color: var(--muted);
-    padding: 10px 10px 6px;
-  }
-
-  .nav-btn {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 11px 12px;
-    border-radius: 10px;
-    border: none;
-    background: transparent;
-    color: var(--muted);
-    font-family: 'DM Mono', monospace;
-    font-size: 13px;
-    cursor: pointer;
-    transition: all 0.18s;
-    text-align: left;
-    width: 100%;
-    position: relative;
-  }
-
-  .nav-btn:hover {
-    background: var(--surface2);
-    color: var(--text);
-  }
-
-  .nav-btn.active {
-    background: var(--surface2);
-    color: var(--text);
-    border: 1px solid var(--border);
-  }
-
-  .nav-btn.active::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 8px;
-    bottom: 8px;
-    width: 3px;
-    border-radius: 0 3px 3px 0;
-    background: linear-gradient(180deg, var(--accent2), var(--accent));
-  }
-
-  .nav-icon {
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    flex-shrink: 0;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    transition: all 0.18s;
-  }
-
-  .nav-btn.active .nav-icon {
-    background: linear-gradient(135deg, rgba(123,97,255,0.2), rgba(0,229,255,0.1));
-    border-color: rgba(0,229,255,0.2);
-  }
-
-  .nav-label { line-height: 1; }
-
-  .nav-badge {
-    margin-left: auto;
-    font-size: 9px;
-    padding: 2px 6px;
-    border-radius: 20px;
-    background: rgba(0,229,255,0.1);
-    border: 1px solid rgba(0,229,255,0.2);
-    color: var(--accent);
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-  }
-
-  /* Sidebar footer */
-  .sidebar-footer {
-    padding: 16px 12px;
-    border-top: 1px solid var(--border);
-  }
-
-  .sidebar-version {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
-    border-radius: 10px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-  }
-
-  .sidebar-version-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--success);
-    box-shadow: 0 0 8px var(--success);
-    animation: pulse 2s infinite;
-    flex-shrink: 0;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
-
-  .sidebar-version-text {
-    font-size: 11px;
-    color: var(--muted);
-    line-height: 1;
-  }
-
-  .sidebar-version-label {
-    font-size: 9px;
-    color: var(--success);
-    letter-spacing: 0.5px;
-    margin-top: 2px;
-  }
-
-  /* ── Main content ── */
-  .app-main {
-    margin-left: 220px;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-  }
-
-  /* ── Top bar ── */
-  .app-topbar {
-    height: 60px;
-    border-bottom: 1px solid var(--border);
-    background: rgba(10,10,15,0.9);
-    backdrop-filter: blur(20px);
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    display: flex;
-    align-items: center;
-    padding: 0 32px;
-    gap: 16px;
-  }
-
-  .topbar-breadcrumb {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: var(--muted);
-  }
-
-  .topbar-breadcrumb-sep { opacity: 0.3; }
-
-  .topbar-breadcrumb-current {
-    color: var(--text);
-    font-family: 'Syne', sans-serif;
-    font-weight: 700;
-  }
-
-  .topbar-spacer { flex: 1; }
-
-  .topbar-status {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11px;
-    color: var(--muted);
-    padding: 6px 12px;
-    border-radius: 20px;
-    border: 1px solid var(--border);
-    background: var(--surface2);
-  }
-
-  .topbar-status-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--success);
-    animation: pulse 2s infinite;
-    flex-shrink: 0;
-  }
-
-  /* ── Page content ── */
-  .app-page {
-    flex: 1;
-    animation: pageIn 0.2s ease;
-  }
-
-  @keyframes pageIn {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  /* ── Mobile nav (bottom bar) ── */
-  @media (max-width: 700px) {
-    .app-sidebar { display: none; }
-    .app-main { margin-left: 0; }
-
-    .app-mobile-nav {
-      display: flex !important;
-    }
-  }
-
-  .app-mobile-nav {
-    display: none;
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
-    background: var(--surface);
-    border-top: 1px solid var(--border);
-    z-index: 30;
-    padding: 8px 16px 16px;
-    gap: 8px;
-  }
-
-  .mobile-nav-btn {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 5px;
-    padding: 10px 8px;
-    border-radius: 12px;
-    border: none;
-    background: transparent;
-    color: var(--muted);
-    font-family: 'DM Mono', monospace;
-    font-size: 10px;
-    cursor: pointer;
-    transition: all 0.18s;
-  }
-
-  .mobile-nav-btn.active {
-    background: var(--surface2);
-    color: var(--accent);
-    border: 1px solid var(--border);
-  }
-
-  .mobile-nav-icon { font-size: 20px; }
-
-  .sidebar-signout {
-    margin-top: 10px; width: 100%; padding: 9px; border-radius: 10px; cursor: pointer;
-    border: 1px solid var(--border); background: transparent; color: var(--muted);
-    font-family: 'DM Mono', monospace; font-size: 12px;
-  }
-  .sidebar-signout:hover { color: var(--text); border-color: var(--accent); }
-`;
+const Icon = {
+  fridge: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="5" y="2.5" width="14" height="19" rx="2" /><path d="M5 10h14M9 6v1.5M9 13.5v2.5" />
+    </svg>
+  ),
+  shelves: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 10h18M3 15h18" />
+    </svg>
+  ),
+  camera: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" />
+    </svg>
+  ),
+  sun: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </svg>
+  ),
+  moon: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z" />
+    </svg>
+  ),
+};
 
 const pages = [
-  {
-    id: "dashboard",
-    label: "Dashboard",
-    icon: "🛒",
-    badge: null,
-    description: "AI Marketplace",
-  },
-  {
-    id: "slots",
-    label: "Fridge Slots",
-    icon: "▦",
-    badge: null,
-    description: "Trays & Slots",
-  },
-  {
-    id: "camera",
-    label: "Detection",
-    icon: "◎",
-    badge: "AI",
-    description: "Water Level Scanner",
-  },
+  { id: "dashboard", label: "Your fridge", icon: Icon.fridge },
+  { id: "slots", label: "Shelves", icon: Icon.shelves },
+  { id: "detection", label: "Camera", icon: Icon.camera },
 ];
 
 function App() {
   const [page, setPage] = useState("dashboard");
   const [token, setToken] = useState(getToken());
+  const [theme, setTheme] = useState(readTheme);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try { localStorage.setItem(THEME_KEY, theme); } catch { /* ignore */ }
+  }, [theme]);
 
   // The API layer fires this when a request comes back 401 (expired/invalid token).
   useEffect(() => {
@@ -388,104 +71,51 @@ function App() {
     setToken(null);
   };
 
-  const current = pages.find(p => p.id === page);
+  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
 
-  if (!token) {
-    return (
-      <>
-        <style>{styles}</style>
-        <Login onLogin={setToken} />
-      </>
-    );
-  }
+  if (!token) return <Login onLogin={setToken} theme={theme} onToggleTheme={toggleTheme} />;
+
+  const nav = (extraClass = "") =>
+    pages.map((p) => (
+      <button
+        key={p.id}
+        className={`rail-link ${extraClass}`}
+        aria-current={page === p.id ? "page" : undefined}
+        onClick={() => setPage(p.id)}
+      >
+        {p.icon}
+        {p.label}
+      </button>
+    ));
 
   return (
-    <>
-      <style>{styles}</style>
-      <div className="app-shell">
-
-        {/* ── Sidebar ── */}
-        <aside className="app-sidebar">
-          <div className="sidebar-logo">
-            <div className="sidebar-logo-icon">🧺</div>
-            <div>
-              <div className="sidebar-logo-text">AutoBasket</div>
-              <div className="sidebar-logo-sub">Smart Grocery AI</div>
-            </div>
+    <div className="shell">
+      <aside className="rail">
+        <div className="rail-brand">
+          <div className="rail-mark">A</div>
+          <div>
+            <strong>AutoBasket</strong>
+            <span>Knows what's in your fridge</span>
           </div>
-
-          <nav className="sidebar-nav">
-            <div className="sidebar-section-label">Navigation</div>
-
-            {pages.map(p => (
-              <button
-                key={p.id}
-                className={`nav-btn${page === p.id ? " active" : ""}`}
-                onClick={() => setPage(p.id)}
-              >
-                <div className="nav-icon">{p.icon}</div>
-                <div>
-                  <div className="nav-label">{p.label}</div>
-                </div>
-                {p.badge && (
-                  <span className="nav-badge">{p.badge}</span>
-                )}
-              </button>
-            ))}
-          </nav>
-
-          <div className="sidebar-footer">
-            <div className="sidebar-version">
-              <div className="sidebar-version-dot" />
-              <div>
-                <div className="sidebar-version-text">System</div>
-                <div className="sidebar-version-label">● Online</div>
-              </div>
-            </div>
-            <button className="sidebar-signout" onClick={signOut}>Sign out</button>
-          </div>
-        </aside>
-
-        {/* ── Main ── */}
-        <main className="app-main">
-          <div className="app-topbar">
-            <div className="topbar-breadcrumb">
-              <span>AutoBasket</span>
-              <span className="topbar-breadcrumb-sep">/</span>
-              <span className="topbar-breadcrumb-current">
-                {current?.description}
-              </span>
-            </div>
-            <div className="topbar-spacer" />
-            <div className="topbar-status">
-              <div className="topbar-status-dot" />
-              All systems operational
-            </div>
-          </div>
-
-          <div className="app-page" key={page}>
-            {page === "dashboard" && <Dashboard />}
-            {page === "slots" && <Slots />}
-            {page === "camera" && <Camera />}
-          </div>
-        </main>
-
-        {/* ── Mobile bottom nav ── */}
-        <div className="app-mobile-nav">
-          {pages.map(p => (
-            <button
-              key={p.id}
-              className={`mobile-nav-btn${page === p.id ? " active" : ""}`}
-              onClick={() => setPage(p.id)}
-            >
-              <span className="mobile-nav-icon">{p.icon}</span>
-              {p.label}
-            </button>
-          ))}
         </div>
+        <nav className="rail-nav" aria-label="Main">{nav()}</nav>
+        <div className="rail-foot">
+          <button className="rail-link" onClick={toggleTheme}>
+            {theme === "dark" ? Icon.sun : Icon.moon}
+            {theme === "dark" ? "Light mode" : "Dark mode"}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={signOut}>Sign out</button>
+        </div>
+      </aside>
 
-      </div>
-    </>
+      <main className="main">
+        {page === "dashboard" && <Dashboard />}
+        {page === "slots" && <Slots />}
+        {page === "detection" && <Detection />}
+      </main>
+
+      <nav className="bottom-nav" aria-label="Main">{nav()}</nav>
+    </div>
   );
 }
 

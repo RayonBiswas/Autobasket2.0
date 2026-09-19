@@ -1,74 +1,82 @@
 import { useMemo, useState } from "react";
 import API from "../services/api";
 
+const styles = `
+  .chat { display: flex; flex-direction: column; gap: 14px; }
+  .chat-log { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; }
+  .chat-msg { max-width: 82%; padding: 10px 14px; border-radius: 14px; font-size: 15px; white-space: pre-wrap; line-height: 1.45; }
+  .chat-msg.user { align-self: flex-end; background: var(--accent); color: var(--on-accent); border-bottom-right-radius: 4px; }
+  .chat-msg.assistant { align-self: flex-start; background: var(--surface-2); border-bottom-left-radius: 4px; }
+  .chat-row { display: flex; gap: 8px; }
+  .chat-row .input { flex: 1; }
+  .chat-hints { display: flex; gap: 8px; flex-wrap: wrap; }
+`;
+
+const HINTS = ["What's running low?", "Where is milk cheapest?", "Show my recent orders"];
+
 function AgentChatPanel() {
   const [messages, setMessages] = useState([
-    {
-      role: "assistant",
-      content: "I can help review pantry levels, build restock lists, and place orders with a confirmation guardrail.",
-    },
+    { role: "assistant", content: "Ask me what's running low, where something is cheapest, or to order it." },
   ]);
   const [input, setInput] = useState("");
   const [pending, setPending] = useState(false);
 
   const sessionId = useMemo(() => {
-    if (typeof window === "undefined") return "dashboard-session";
-    const existing = window.localStorage.getItem("autobasket-agent-session");
-    if (existing) return existing;
-    const next = `dashboard-${Date.now()}`;
-    window.localStorage.setItem("autobasket-agent-session", next);
-    return next;
+    try {
+      const existing = localStorage.getItem("autobasket-agent-session");
+      if (existing) return existing;
+      const next = `web-${Date.now()}`;
+      localStorage.setItem("autobasket-agent-session", next);
+      return next;
+    } catch {
+      return "web-session";
+    }
   }, []);
 
-  const handleSend = async () => {
-    if (!input.trim() || pending) return;
-    const userMessage = input.trim();
+  const send = async (text) => {
+    const userMessage = (text ?? input).trim();
+    if (!userMessage || pending) return;
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setInput("");
     setPending(true);
-
     try {
       const res = await API.post("/agent/chat", { message: userMessage, session_id: sessionId });
       setMessages((prev) => [...prev, { role: "assistant", content: res.data.response }]);
     } catch {
-      setMessages((prev) => [...prev, { role: "assistant", content: "The agent is temporarily unavailable. Please try again in a moment." }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: "I couldn't reach the fridge just now. Try again in a moment." }]);
     } finally {
       setPending(false);
     }
   };
 
   return (
-    <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 20, padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 18 }}>Agent Assistant</div>
-          <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>LangGraph-style reasoning with Ollama and confirmation guardrails</div>
-        </div>
-        <div style={{ fontSize: 11, padding: "4px 8px", borderRadius: 999, background: "rgba(0,229,255,0.12)", color: "var(--accent)", border: "1px solid rgba(0,229,255,0.2)" }}>AI</div>
+    <div className="card chat">
+      <style>{styles}</style>
+      <div className="section-title" style={{ marginBottom: 0 }}>
+        <h2>Ask your fridge</h2>
+        <span>Orders over ₹50 always ask you first</span>
       </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 260, overflowY: "auto", paddingRight: 4 }}>
+      <div className="chat-log">
         {messages.map((msg, index) => (
-          <div key={`${msg.role}-${index}`} style={{ alignSelf: msg.role === "user" ? "flex-end" : "flex-start", maxWidth: "86%" }}>
-            <div style={{ background: msg.role === "user" ? "linear-gradient(135deg, var(--accent2), var(--accent))" : "var(--surface2)", color: msg.role === "user" ? "#fff" : "var(--text)", padding: "10px 12px", borderRadius: 14, border: msg.role === "assistant" ? "1px solid var(--border)" : "none", whiteSpace: "pre-wrap" }}>
-              {msg.content}
-            </div>
-          </div>
+          <div key={`${msg.role}-${index}`} className={`chat-msg ${msg.role}`}>{msg.content}</div>
         ))}
-        {pending && <div style={{ alignSelf: "flex-start", color: "var(--muted)", fontSize: 12 }}>Thinking…</div>}
+        {pending && <div className="muted small">Thinking…</div>}
       </div>
-
-      <div style={{ display: "flex", gap: 8 }}>
+      {messages.length === 1 && (
+        <div className="chat-hints">
+          {HINTS.map((h) => <button key={h} className="btn btn-sm" onClick={() => send(h)}>{h}</button>)}
+        </div>
+      )}
+      <div className="chat-row">
         <input
+          className="input"
           value={input}
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={(event) => event.key === "Enter" && handleSend()}
-          placeholder="Ask about inventory, restocks, or orders"
-          style={{ flex: 1, background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", padding: "10px 12px", outline: "none" }}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && send()}
+          placeholder="Type a question"
+          aria-label="Ask your fridge"
         />
-        <button onClick={handleSend} disabled={pending} style={{ border: "none", borderRadius: 12, padding: "10px 14px", background: "linear-gradient(135deg, var(--accent2), var(--accent))", color: "#fff", cursor: pending ? "default" : "pointer", opacity: pending ? 0.7 : 1 }}>
-          Send
-        </button>
+        <button className="btn btn-primary" onClick={() => send()} disabled={pending}>Send</button>
       </div>
     </div>
   );

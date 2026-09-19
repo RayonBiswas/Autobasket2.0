@@ -4,55 +4,20 @@ import API from "../services/api";
 const REFRESH_MS = 5000;
 
 const styles = `
-  .slots-root { padding: 32px; display: flex; flex-direction: column; gap: 24px; max-width: 1000px; }
-  .slots-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-  .slots-title { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; letter-spacing: -1px; }
-  .slots-sub { color: var(--muted); font-size: 13px; margin-top: 6px; }
-  .tray-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px; }
-  .tray-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-  .tray-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; }
-  .tray-device { font-size: 11px; color: var(--muted); }
-  .slot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
-  .slot {
-    border: 1px dashed var(--border); border-radius: 12px; padding: 14px 12px;
-    display: flex; flex-direction: column; gap: 8px; background: var(--surface2);
-  }
-  .slot.filled { border-style: solid; border-color: rgba(0,229,255,0.35); }
-  .slot-pos { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; }
-  .slot-select {
-    width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
-    background: var(--surface); color: var(--text); font-family: 'DM Mono', monospace; font-size: 12px;
-  }
-  .slot-weight { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 20px; }
-  .slot-weight small { font-family: 'DM Mono', monospace; font-weight: 400; font-size: 11px; color: var(--muted); margin-left: 6px; }
-  .slot-bar { height: 6px; background: var(--surface); border-radius: 99px; overflow: hidden; border: 1px solid var(--border); }
-  .slot-bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--accent2), var(--accent)); transition: width 0.6s; }
-  .slot-bar-fill.low { background: linear-gradient(90deg, #c0192e, var(--danger)); }
-  .slot-meta { font-size: 10px; color: var(--muted); }
-  .slot-actions { display: flex; gap: 6px; }
-  .slot-btn {
-    flex: 1; padding: 7px 8px; border-radius: 8px; cursor: pointer; font-size: 11px;
-    border: 1px solid var(--border); background: transparent; color: var(--text); font-family: 'DM Mono', monospace;
-  }
-  .slot-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-  .slot-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .slots-btn {
-    padding: 11px 18px; border: none; border-radius: 10px; cursor: pointer; color: #fff;
-    background: linear-gradient(135deg, var(--accent2), var(--accent));
-    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px; white-space: nowrap;
-  }
-  .slots-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .slots-empty {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px;
-    display: flex; flex-direction: column; gap: 12px; align-items: flex-start;
-  }
-  .slots-msg { font-size: 12px; color: var(--muted); }
-  .token-card {
-    background: rgba(0,200,150,0.06); border: 1px solid rgba(0,200,150,0.3); border-radius: 14px; padding: 16px 18px;
-    display: flex; flex-direction: column; gap: 8px; font-size: 12px;
-  }
-  .token-card code { display: block; padding: 10px; border-radius: 8px; background: var(--surface2); word-break: break-all; font-size: 12px; user-select: all; }
-  .token-card strong { color: var(--success); }
+  .tray { display: flex; flex-direction: column; gap: 14px; }
+  .tray-head { display: flex; align-items: baseline; justify-content: space-between; }
+  .tray-head span { color: var(--muted); font-size: 14px; }
+  .slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .slot { display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid var(--line); border-radius: var(--r-control); background: var(--surface-2); }
+  .slot.assigned { background: var(--surface); }
+  .slot-top { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; color: var(--muted); }
+  .slot-weight { font-size: 1.4rem; font-weight: 600; }
+  .slot-weight small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 6px; }
+  .slot-cal { font-size: 13px; color: var(--muted); }
+  .slot-actions { display: flex; gap: 8px; }
+  .slot-actions .btn { flex: 1; }
+  .token { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; padding: 10px 12px; border-radius: 8px; background: var(--surface-2); word-break: break-all; user-select: all; }
+  .head-actions { display: flex; gap: 8px; }
 `;
 
 function pct(fraction) {
@@ -63,6 +28,7 @@ function SlotCard({ slot, products, onChange }) {
   const [busy, setBusy] = useState(false);
   const p = pct(slot.remaining_fraction);
   const hasReading = slot.latest_weight_grams != null;
+  const gaugeClass = p == null ? "" : p < 25 ? "gauge-danger" : p < 45 ? "gauge-warn" : "";
 
   const call = async (fn) => {
     setBusy(true);
@@ -70,7 +36,7 @@ function SlotCard({ slot, products, onChange }) {
       await fn();
       await onChange();
     } catch (err) {
-      alert(err.response?.data?.detail || "Request failed");
+      alert(err.response?.data?.detail || "That didn't work. Try again.");
     } finally {
       setBusy(false);
     }
@@ -78,38 +44,37 @@ function SlotCard({ slot, products, onChange }) {
 
   const assign = (e) => {
     const value = e.target.value;
-    const body = value === "" ? { clear_product: true } : { product_id: Number(value) };
-    call(() => API.put(`/slots/${slot.slot_id}`, body));
+    call(() => API.put(`/slots/${slot.slot_id}`, value === "" ? { clear_product: true } : { product_id: Number(value) }));
   };
 
   return (
-    <div className={`slot${slot.product_id ? " filled" : ""}`}>
-      <div className="slot-pos">
+    <div className={`slot${slot.product_id ? " assigned" : ""}`}>
+      <div className="slot-top">
         <span>Slot {slot.position}</span>
-        {p != null && <span>{p}%</span>}
+        {p != null && <span>{p}% left</span>}
       </div>
-      <select className="slot-select" value={slot.product_id ?? ""} onChange={assign} disabled={busy}>
-        <option value="">— no product —</option>
+      <select className="select" value={slot.product_id ?? ""} onChange={assign} disabled={busy} aria-label={`Product in slot ${slot.position}`}>
+        <option value="">Nothing here</option>
         {products.map((pr) => (
-          <option key={pr.id} value={pr.id}>{pr.name} · {pr.pack_size} {pr.unit}</option>
+          <option key={pr.id} value={pr.id}>{pr.name} ({pr.pack_size} {pr.unit})</option>
         ))}
       </select>
+      <div className={`gauge gauge-slim ${gaugeClass}`} aria-hidden="true">
+        <div className="gauge-fill" style={{ height: `${p ?? 0}%` }} />
+      </div>
       <div className="slot-weight">
-        {hasReading ? Math.round(slot.latest_weight_grams) : "—"}
-        <small>g{slot.latest_at ? ` · ${new Date(slot.latest_at).toLocaleTimeString()}` : ""}</small>
+        {hasReading ? `${Math.round(slot.latest_weight_grams)} g` : "No weight yet"}
+        {slot.latest_at && <small>{new Date(slot.latest_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small>}
       </div>
-      <div className="slot-bar">
-        <div className={`slot-bar-fill${p != null && p < 25 ? " low" : ""}`} style={{ width: `${p ?? 0}%` }} />
-      </div>
-      <div className="slot-meta">
-        empty {slot.tare_grams != null ? `${Math.round(slot.tare_grams)} g` : "—"} · full {slot.full_grams != null ? `${Math.round(slot.full_grams)} g` : "—"}
+      <div className="slot-cal">
+        Empty {slot.tare_grams != null ? `${Math.round(slot.tare_grams)} g` : "not set"}, full {slot.full_grams != null ? `${Math.round(slot.full_grams)} g` : "not set"}
       </div>
       <div className="slot-actions">
-        <button className="slot-btn" disabled={busy || !hasReading} onClick={() => call(() => API.post(`/slots/${slot.slot_id}/mark-empty`))}>
-          Mark empty
+        <button className="btn btn-sm" disabled={busy || !hasReading} onClick={() => call(() => API.post(`/slots/${slot.slot_id}/mark-empty`))}>
+          This is empty
         </button>
-        <button className="slot-btn" disabled={busy || !hasReading} onClick={() => call(() => API.post(`/slots/${slot.slot_id}/mark-full`))}>
-          Mark full
+        <button className="btn btn-sm" disabled={busy || !hasReading} onClick={() => call(() => API.post(`/slots/${slot.slot_id}/mark-full`))}>
+          This is full
         </button>
       </div>
     </div>
@@ -128,7 +93,7 @@ function Slots() {
       const res = await API.get("/households/me/slots");
       setTrays(res.data.trays);
     } catch (err) {
-      setMsg(err.response?.data?.detail || "Could not load slots.");
+      setMsg(err.response?.data?.detail || "We couldn't load your shelves.");
       setTrays([]);
     }
   }, []);
@@ -146,78 +111,76 @@ function Slots() {
     try {
       const res = await API.post("/seed/dev");
       setMsg(res.data.message);
-      if (res.data.device_token) setNewDevice({ name: "Dev Fridge", token: res.data.device_token });
+      if (res.data.device_token) setNewDevice({ name: "Demo fridge", token: res.data.device_token });
       const pr = await API.get("/products");
       setProducts(pr.data.products);
       await load();
     } catch (err) {
-      setMsg(err.response?.data?.detail || "Seeding failed.");
+      setMsg(err.response?.data?.detail || "Loading the demo data failed.");
     } finally {
       setBusy(false);
     }
   };
 
   const addDevice = async () => {
-    const name = window.prompt("Name for the new fridge device", "Kitchen fridge");
+    const name = window.prompt("What should we call this fridge?", "Kitchen fridge");
     if (!name) return;
     try {
       const res = await API.post("/devices", { name });
       setNewDevice({ name: res.data.name, token: res.data.token });
     } catch (err) {
-      alert(err.response?.data?.detail || "Could not create device");
+      alert(err.response?.data?.detail || "We couldn't add the fridge. Try again.");
     }
   };
 
   return (
-    <>
+    <div className="page">
       <style>{styles}</style>
-      <div className="slots-root">
-        <div className="slots-head">
-          <div>
-            <div className="slots-title">Fridge Slots</div>
-            <div className="slots-sub">One card per load cell. Pick what sits on it, then tap Mark empty / Mark full to calibrate. Refreshes every 5 s.</div>
-          </div>
-          <button className="slots-btn" onClick={addDevice}>+ Add device</button>
+      <div className="page-head" style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
+        <div>
+          <h1>Shelves</h1>
+          <p>Each slot is a scale. Tell it what sits there, then tap "This is empty" and "This is full" once to teach it.</p>
         </div>
-
-        {newDevice && (
-          <div className="token-card">
-            <div><strong>{newDevice.name}</strong> created. Copy this token now — it is shown only once.</div>
-            <code>{newDevice.token}</code>
-            <div className="slots-msg">
-              Run the simulator with it: <code style={{ display: "inline", padding: "2px 6px" }}>$env:AB_DEVICE_TOKEN="…"; python edge/simulator.py</code>
-            </div>
-            <button className="slot-btn" style={{ alignSelf: "flex-start" }} onClick={() => setNewDevice(null)}>Dismiss</button>
-          </div>
-        )}
-
-        {trays === null && <div className="slots-msg">Loading…</div>}
-
-        {trays && trays.length === 0 && (
-          <div className="slots-empty">
-            <div>No fridge is linked to this household yet.</div>
-            <button className="slots-btn" onClick={seed} disabled={busy}>
-              {busy ? "Seeding…" : "Seed dev data (2 trays × 4 slots)"}
-            </button>
-            {msg && <div className="slots-msg">{msg}</div>}
-          </div>
-        )}
-
-        {trays && trays.map((t) => (
-          <div className="tray-card" key={t.tray_id}>
-            <div className="tray-head">
-              <div className="tray-name">{t.label || `Tray ${t.position}`}</div>
-              <div className="tray-device">{t.device}</div>
-            </div>
-            <div className="slot-grid">
-              {t.slots.map((s) => (
-                <SlotCard key={s.slot_id} slot={s} products={products} onChange={load} />
-              ))}
-            </div>
-          </div>
-        ))}
+        <div className="head-actions">
+          <button className="btn" onClick={addDevice}>Add a fridge</button>
+        </div>
       </div>
-    </>
+
+      {newDevice && (
+        <div className="card empty">
+          <h2>{newDevice.name} is ready to connect</h2>
+          <p>Copy this key into the fridge device now. For safety it is shown only once.</p>
+          <div className="token">{newDevice.token}</div>
+          <p className="small muted">To try it without hardware: set AB_DEVICE_TOKEN to this key and run edge/simulator.py.</p>
+          <button className="btn btn-sm" onClick={() => setNewDevice(null)}>Done</button>
+        </div>
+      )}
+
+      {trays === null && <p className="muted">Checking the shelves…</p>}
+
+      {trays && trays.length === 0 && (
+        <div className="card empty">
+          <h2>No fridge connected yet</h2>
+          <p>Add a fridge to get a device key, or load the demo fridge with two shelves of four slots.</p>
+          <button className="btn btn-primary" onClick={seed} disabled={busy}>{busy ? "Loading…" : "Load the demo fridge"}</button>
+          {msg && <div className="notice">{msg}</div>}
+        </div>
+      )}
+
+      {trays && trays.map((t) => (
+        <section className="card tray" key={t.tray_id}>
+          <div className="tray-head">
+            <h2>{t.label || `Shelf ${t.position}`}</h2>
+            <span>{t.device}</span>
+          </div>
+          <div className="slot-grid">
+            {t.slots.map((s) => (
+              <SlotCard key={s.slot_id} slot={s} products={products} onChange={load} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
   );
 }
 
