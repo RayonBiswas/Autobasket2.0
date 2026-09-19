@@ -1,7 +1,7 @@
 # Phase 2 — Device Ingestion + Fridge Simulator: Design
 
 Date: 2026-09-19
-Status: DRAFT
+Status: IMPLEMENTED 2026-09-19 (branch phase-2-device-ingestion). PostgreSQL verified via docker compose (host port 5433) and CI service. Screenshots: docs/screenshots/phase-2-dashboard.png, phase-2-order.png.
 Parent: `2026-09-19-smart-fridge-roadmap-design.md` §3.2, §6 Phase 2
 
 ## 1. Goal (plain words)

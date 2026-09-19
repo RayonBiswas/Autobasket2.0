@@ -60,7 +60,8 @@ uvicorn app.main:app --reload
 ```
 
 For PostgreSQL (what production uses): `docker compose up -d db`, set `DATABASE_URL` in `.env` to
-`postgresql+psycopg://autobasket:autobasket@localhost:5432/autobasket`, then run the same two commands.
+`postgresql+psycopg://autobasket:autobasket@localhost:5433/autobasket`, then run the same two commands.
+(Host port 5433 avoids clashing with a locally installed PostgreSQL.)
 Schema changes are always made through Alembic (`alembic revision --autogenerate -m "..."`); a test fails if the
 models and migrations drift apart.
 
@@ -95,6 +96,28 @@ Every other endpoint requires the bearer token and is scoped to the caller's hou
 `/orders`, `/agent/chat`. `POST /seed/dev` loads 20 products, 3 vendors and a dev fridge (dev mode only).
 Interactive docs: http://localhost:8000/docs.
 
+## Fridge devices and the simulator
+
+Each fridge has a **device** (a Raspberry Pi) that authenticates with its own token and posts load-cell readings:
+
+```
+GET  /devices/me                    slot layout (tray/slot positions, product, empty/full grams)
+POST /devices/me/readings           {"readings":[{"tray":1,"slot":1,"weight_grams":565}]}
+```
+
+The API turns a weight into "milk is 50 % left" only for slots that have a product assigned **and** are
+calibrated (Slots page → *Mark empty* / *Mark full*). Every raw reading is kept in `slot_readings`; every
+inventory change is kept in `inventory_events`, which the predictor learns from.
+
+Until the hardware arrives, `edge/simulator.py` plays the Pi — see `edge/README.md`. With the API running:
+
+```powershell
+$env:AB_DEVICE_TOKEN = "<token from Slots page → Add device, or /seed/dev>"
+.venv\Scripts\python.exe edge\simulator.py --interval 3
+```
+
+![Dashboard](docs/screenshots/phase-2-dashboard.png)
+
 ## Environment variables
 
 See `.env.example` — every variable is documented there. The important ones:
@@ -108,11 +131,14 @@ See `.env.example` — every variable is documented there. The important ones:
 These are exactly what CI runs (`.github/workflows/ci.yml`):
 
 ```bash
-ruff check backend            # Python lint (auto-fix with --fix)
-pytest backend/tests -q       # backend tests
-cd frontend && npm run lint   # JavaScript lint
-cd frontend && npm run build  # production bundle
+ruff check backend edge --config backend/pyproject.toml   # Python lint (auto-fix with --fix)
+pytest backend/tests -q                                   # backend tests (SQLite, fast)
+cd frontend && npm run lint                               # JavaScript lint
+cd frontend && npm run build                              # production bundle
 ```
+
+To also exercise the real database: `docker compose up -d db`, then
+`AB_PG_URL=postgresql+psycopg://autobasket:autobasket@localhost:5433/autobasket pytest backend/tests/test_postgres_smoke.py`.
 
 ## Documentation
 
