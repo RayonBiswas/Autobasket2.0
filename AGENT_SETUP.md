@@ -16,11 +16,18 @@ export OLLAMA_MODEL=lfm2.5:8b-toolfix
 # 2. Start the API
 uvicorn app.main:app --reload
 
-# 3. Hit the endpoint
+# 3. Log in (dev mode echoes the code) and hit the endpoint
+curl -X POST localhost:8000/auth/request-otp -H "Content-Type: application/json" -d '{"email":"you@example.com"}'
+# -> {"dev_code":"123456"}
+curl -X POST localhost:8000/auth/verify-otp -H "Content-Type: application/json" -d '{"email":"you@example.com","code":"123456"}'
+# -> {"access_token":"...", ...}
+curl -X POST localhost:8000/seed/dev -H "Authorization: Bearer <access_token>"
 curl -X POST localhost:8000/agent/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "order rice from FreshMart", "session_id": "demo"}'
+  -H "Content-Type: application/json" -H "Authorization: Bearer <access_token>" \
+  -d '{"message": "order rice from Local Kirana", "session_id": "demo"}'
 ```
+
+Chat memory is keyed per household, so two households never share a conversation even with the same `session_id`.
 
 If Ollama is not reachable, the agent falls back to regex-based heuristic routing (run_heuristic_agent) — same tools, same guardrail, weaker language understanding. This is sufficient for demos and tests.
 

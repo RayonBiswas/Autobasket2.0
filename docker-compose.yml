@@ -1,0 +1,21 @@
+# Local infrastructure. Start with:  docker compose up -d db
+# Then point DATABASE_URL at postgresql+psycopg://autobasket:autobasket@localhost:5432/autobasket
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: autobasket
+      POSTGRES_PASSWORD: autobasket
+      POSTGRES_DB: autobasket
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U autobasket"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:

@@ -51,12 +51,18 @@ cp .env.example .env
 
 Then update the environment values in .env as needed. `requirements-dev.txt` pulls in `requirements.txt` plus the linter; production images install only `requirements.txt`.
 
-### 3. Run the API
+### 3. Create the database and run the API
 
 ```bash
 cd backend
+alembic upgrade head          # creates/updates the schema (SQLite by default)
 uvicorn app.main:app --reload
 ```
+
+For PostgreSQL (what production uses): `docker compose up -d db`, set `DATABASE_URL` in `.env` to
+`postgresql+psycopg://autobasket:autobasket@localhost:5432/autobasket`, then run the same two commands.
+Schema changes are always made through Alembic (`alembic revision --autogenerate -m "..."`); a test fails if the
+models and migrations drift apart.
 
 The API will be available at:
 
@@ -74,18 +80,28 @@ npm run dev
 
 The frontend will be available at http://localhost:5173.
 
+## Logging in and the API
+
+Authentication is email + 6-digit code. With `AUTH_DEV_MODE=1` the code is returned by the API instead of emailed:
+
+```
+POST /auth/request-otp  {"email": "you@example.com"}        -> {"dev_code": "123456"}
+POST /auth/verify-otp   {"email": "...", "code": "123456"}  -> {"access_token": "..."}
+GET  /auth/me                                                (Authorization: Bearer <token>)
+```
+
+Every other endpoint requires the bearer token and is scoped to the caller's household:
+`/households/me`, `/households/me/slots`, `/inventory`, `/vendors/compare/{product}`, `/vendors/review`,
+`/orders`, `/agent/chat`. `POST /seed/dev` loads 20 products, 3 vendors and a dev fridge (dev mode only).
+Interactive docs: http://localhost:8000/docs.
+
 ## Environment variables
 
-A sample file is provided in .env.example. The most relevant settings are:
+See `.env.example` — every variable is documented there. The important ones:
 
-- LLM_PROVIDER=ollama or openai
-- OPENAI_API_KEY=your_key_here
-- OPENAI_MODEL=gpt-4o-mini
-- OPENAI_BASE_URL=https://api.openai.com/v1
-- OLLAMA_MODEL=lfm2.5:8b-toolfix
-- DATABASE_URL=sqlite:///./autobasket.db (default; PostgreSQL URL in production)
-
-If no remote model is configured, the agent falls back to local heuristic routing for demos and testing.
+- `DATABASE_URL` — SQLite by default, PostgreSQL in production
+- `JWT_SECRET`, `AUTH_DEV_MODE` — login
+- `LLM_PROVIDER`, `OPENAI_*`, `OLLAMA_MODEL` — chat agent; with nothing configured it falls back to keyword routing
 
 ## Testing and linting
 
