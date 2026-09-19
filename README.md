@@ -96,6 +96,24 @@ Every other endpoint requires the bearer token and is scoped to the caller's hou
 `/orders`, `/agent/chat`. `POST /seed/dev` loads 20 products, 3 vendors and a dev fridge (dev mode only).
 Interactive docs: http://localhost:8000/docs.
 
+## How "runs out on Thursday" is calculated
+
+Every reading becomes an `inventory_event`. `services/consumption.py` learns each household's daily use of each
+product from the last 30 days of events (drops are consumption, refills are skipped, jitter is ignored) and blends
+it with a household-size guess until about a week of history exists. The UI shows which one it is
+("Based on 14 days of use" vs "Estimated from household size"). An item needs reordering when it will not outlast
+a delivery plus one day (`predictor.py`).
+
+Predictions refresh on every reading and, for quiet households, from the background worker:
+
+```bash
+cd backend
+python -m app.worker        # recomputes every 15 minutes
+```
+
+To demo learning without waiting a week, let the simulator post two weeks of history first:
+`python edge/simulator.py --backfill-days 14`.
+
 ## Fridge devices and the simulator
 
 Each fridge has a **device** (a Raspberry Pi) that authenticates with its own token and posts load-cell readings:

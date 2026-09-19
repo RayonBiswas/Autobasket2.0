@@ -28,6 +28,24 @@ def test_build_payload_shape():
     assert payload == {"readings": [{"tray": 1, "slot": 2, "weight_grams": 123.5}]}
 
 
+def test_backfill_produces_ordered_history_with_refills():
+    from datetime import UTC, datetime
+
+    state = [
+        {"tray": 1, "slot": 1, "name": "milk", "pack_size": 1.0, "tare": 50.0, "full": 1080.0, "calibrated": True, "weight": 1080.0},
+        {"tray": 1, "slot": 2, "name": None, "pack_size": None, "tare": None, "full": None, "calibrated": False, "weight": 50.0},
+    ]
+    now = datetime(2026, 9, 19, 12, tzinfo=UTC)
+    batches = simulator.backfill_events(state, 14, now, random.Random(3))
+
+    assert 27 <= len(batches) <= 29  # two a day, clipped to "now"
+    times = [t for t, _ in batches]
+    assert times == sorted(times) and times[-1] <= now
+    milk = [r[0]["weight_grams"] for _, r in batches]
+    assert any(b > a + 300 for a, b in zip(milk, milk[1:], strict=False))  # at least one refill
+    assert all(len(r) == 2 for _, r in batches)
+
+
 def test_init_state_and_tick_from_layout():
     layout = {
         "device": {"id": 1, "name": "Dev Fridge"},
