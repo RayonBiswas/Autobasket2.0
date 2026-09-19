@@ -1,6 +1,8 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from datetime import datetime
+
 from .. import models, schemas
 from ..database import SessionLocal
 

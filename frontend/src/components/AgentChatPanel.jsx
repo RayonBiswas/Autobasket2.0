@@ -30,7 +30,7 @@ function AgentChatPanel() {
     try {
       const res = await API.post("/agent/chat", { message: userMessage, session_id: sessionId });
       setMessages((prev) => [...prev, { role: "assistant", content: res.data.response }]);
-    } catch (error) {
+    } catch {
       setMessages((prev) => [...prev, { role: "assistant", content: "The agent is temporarily unavailable. Please try again in a moment." }]);
     } finally {
       setPending(false);

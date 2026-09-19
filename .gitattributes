@@ -1,0 +1,17 @@
+# Normalise line endings: LF in the repo, LF on checkout everywhere.
+# The API and the Pi edge agent run on Linux; mixed CRLF breaks shell scripts and Docker builds.
+* text=auto eol=lf
+
+# Windows-only files keep CRLF
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.db binary
+*.woff binary
+*.woff2 binary

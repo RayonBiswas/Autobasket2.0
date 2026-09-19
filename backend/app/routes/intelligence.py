@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from ..database import SessionLocal
+
 from .. import models
+from ..database import SessionLocal
 from ..services.predictor import predict_status
 
 router = APIRouter()

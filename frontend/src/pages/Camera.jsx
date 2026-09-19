@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import API from "../services/api";
 
 // ─── Load TF.js + COCO-SSD from CDN ─────────────────────────────────────────
@@ -349,7 +349,7 @@ function Camera() {
 
           // Draw
           ctx.clearRect(0, 0, canvas.width, canvas.height);
-          preds.forEach((pred, idx) => {
+          preds.forEach((pred) => {
             const [bx, by, bw, bh] = pred.bbox;
             const color = classColor(pred.class);
             const conf  = Math.round(pred.score * 100);

@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from ..database import SessionLocal
 from ..agent import run_agent_chat
 from ..agent.memory import clear_history, get_pending_confirmation
+from ..database import SessionLocal
 
 router = APIRouter()
 

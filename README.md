@@ -29,9 +29,10 @@ The platform combines a FastAPI backend, a React/Vite frontend, and a conversati
 
 ### Prerequisites
 
-- Python 3.10+
-- Node.js 18+
+- Python 3.12 (managed with [uv](https://docs.astral.sh/uv/) — `uv` installs it for you)
+- Node.js 20+
 - Optional: Ollama for local LLM-backed agent mode
+- Optional: Docker Desktop (PostgreSQL from Phase 1 onward)
 
 ### 1. Clone and enter the repository
 
@@ -43,13 +44,12 @@ cd Autobasket2.0
 ### 2. Backend setup
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\Activate.ps1
-pip install -r backend/requirements.txt
+uv venv --python 3.12 .venv
+uv pip install --python .venv/bin/python -r backend/requirements-dev.txt   # Windows: .venv\Scripts\python.exe
 cp .env.example .env
 ```
 
-Then update the environment values in .env as needed.
+Then update the environment values in .env as needed. `requirements-dev.txt` pulls in `requirements.txt` plus the linter; production images install only `requirements.txt`.
 
 ### 3. Run the API
 
@@ -67,7 +67,8 @@ The API will be available at:
 
 ```bash
 cd frontend
-npm install
+npm ci
+cp .env.example .env.local   # set VITE_API_URL if the API is not on localhost:8000
 npm run dev
 ```
 
@@ -82,22 +83,27 @@ A sample file is provided in .env.example. The most relevant settings are:
 - OPENAI_MODEL=gpt-4o-mini
 - OPENAI_BASE_URL=https://api.openai.com/v1
 - OLLAMA_MODEL=lfm2.5:8b-toolfix
+- DATABASE_URL=sqlite:///./autobasket.db (default; PostgreSQL URL in production)
 
 If no remote model is configured, the agent falls back to local heuristic routing for demos and testing.
 
-## Testing
+## Testing and linting
 
-Run the backend test suite:
-
-```bash
-pytest backend/tests -q
-```
-
-Run the frontend build:
+These are exactly what CI runs (`.github/workflows/ci.yml`):
 
 ```bash
-cd frontend && npm run build
+ruff check backend            # Python lint (auto-fix with --fix)
+pytest backend/tests -q       # backend tests
+cd frontend && npm run lint   # JavaScript lint
+cd frontend && npm run build  # production bundle
 ```
+
+## Documentation
+
+- `docs/superpowers/specs/` — design documents (start with the smart-fridge roadmap)
+- `docs/superpowers/plans/` — per-phase implementation plans
+- `docs/hardware/BOM.md` — hardware bill of materials
+- `AGENT_SETUP.md` — running the LLM agent locally
 
 ## Contributing
 

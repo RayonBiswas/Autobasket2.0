@@ -38,5 +38,4 @@ pytest backend/tests/test_agent_guardrail.py backend/tests/test_agent_smoke.py -
 
 ## Notes
 
-- The smoke test mounts only the agent router, so it avoids the optional vision dependency issue in the full app import path.
-- The compatibility shim at app/routers/agent.py preserves the router import path expected by the tests.
+- The smoke test mounts only the agent router (app/routes/agent.py) so it stays fast and independent of the other routes.

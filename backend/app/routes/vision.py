@@ -1,8 +1,9 @@
-from fastapi import APIRouter
-from pydantic import BaseModel
 import base64
+
 import cv2
 import numpy as np
+from fastapi import APIRouter
+from pydantic import BaseModel
 
 router = APIRouter()
 

@@ -5,9 +5,8 @@ Unlike test_agent_guardrail.py (which calls tools.py directly), this drives
 the flow through the actual FastAPI router — /chat request/response shape,
 session memory, and the confirm/cancel branches of the guardrail.
 
-Runs standalone without importing the full app (app.main), so it isn't
-blocked by the optional cv2 import in the vision route. Only mounts the
-agent router.
+Runs standalone without importing the full app (app.main); only mounts the
+agent router so the test stays fast and independent of the other routes.
 
 Run: pytest test_agent_smoke.py -v
 """
@@ -24,7 +23,7 @@ from sqlalchemy.pool import StaticPool
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app import models
-from app.routers import agent as agent_router
+from app.routes import agent as agent_router
 
 
 @pytest.fixture()

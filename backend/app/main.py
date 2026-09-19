@@ -4,9 +4,9 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .database import engine
 from . import models
-from .routes import items, vendors, intelligence, vision, orders, household, seed, agent
+from .database import engine
+from .routes import agent, household, intelligence, items, orders, seed, vendors, vision
 
 
 def load_env_file() -> None:
