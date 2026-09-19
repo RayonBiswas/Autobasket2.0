@@ -4,7 +4,7 @@ from app import models
 from app.database import Base
 
 EXPECTED = {
-    "users", "otp_codes", "households", "household_members", "devices", "trays", "slots",
+    "users", "otp_codes", "households", "household_members", "devices", "trays", "slots", "slot_readings",
     "products", "inventory_events", "inventory_state", "vendors", "vendor_offers", "orders", "order_items",
 }
 

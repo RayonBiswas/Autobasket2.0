@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..database import Base
@@ -49,3 +49,16 @@ class Slot(Base):
     full_grams: Mapped[float | None]
 
     tray: Mapped["Tray"] = relationship(back_populates="slots")
+    readings: Mapped[list["SlotReading"]] = relationship(order_by="SlotReading.recorded_at.desc()")
+
+
+class SlotReading(Base):
+    """One raw weight sample from one load cell. Calibration and learning read these."""
+
+    __tablename__ = "slot_readings"
+    __table_args__ = (Index("ix_slot_readings_slot_time", "slot_id", "recorded_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    slot_id: Mapped[int] = mapped_column(ForeignKey("slots.id"))
+    weight_grams: Mapped[float]
+    recorded_at: Mapped[datetime] = ts_column()

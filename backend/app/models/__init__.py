@@ -2,7 +2,7 @@
 
 from .auth import Household, HouseholdMember, OtpCode, User
 from .catalog import Product, Vendor, VendorOffer
-from .device import Device, Slot, Tray
+from .device import Device, Slot, SlotReading, Tray
 from .enums import (
     EventSource,
     MemberRole,
@@ -19,7 +19,7 @@ from .orders import Order, OrderItem
 
 __all__ = [
     "User", "OtpCode", "Household", "HouseholdMember",
-    "Device", "Tray", "Slot",
+    "Device", "Tray", "Slot", "SlotReading",
     "Product", "Vendor", "VendorOffer",
     "InventoryEvent", "InventoryState",
     "Order", "OrderItem",
