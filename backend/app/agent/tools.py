@@ -258,7 +258,7 @@ def get_recent_orders(db: Session):
 # 9. Build a shopping list from inventory that needs restocking
 def build_shopping_list(db: Session, max_items: int = 5):
     pantry_status = get_pantry_status(db)
-    needs_attention = [item for item in pantry_status["inventory"] if item["status"] in {"warning", "danger"}]
+    needs_attention = [item for item in pantry_status["inventory"] if item["status"] in {"warning", "critical"}]
     needs_attention.sort(key=lambda item: (item["days_left"], item["remaining_qty"]))
 
     items = []
@@ -267,7 +267,7 @@ def build_shopping_list(db: Session, max_items: int = 5):
             "name": item["name"],
             "days_left": item["days_left"],
             "remaining_qty": item["remaining_qty"],
-            "priority": "urgent" if item["status"] == "danger" else "soon"
+            "priority": "urgent" if item["status"] == "critical" else "soon"
         })
 
     return {
