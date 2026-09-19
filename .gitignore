@@ -21,3 +21,5 @@ build/
 
 # Per-machine Claude Code permissions
 .claude/settings.local.json
+# Playwright MCP session artefacts
+.playwright-mcp/

@@ -1,7 +1,7 @@
 # Phase 1 — Data Foundation + Auth: Design
 
 Date: 2026-09-19
-Status: DRAFT — for review
+Status: IMPLEMENTED 2026-09-19 (branch phase-1-data-foundation). PostgreSQL verification pending Docker Desktop install; see docs/screenshots/phase-1-slots.png.
 Parent: `2026-09-19-smart-fridge-roadmap-design.md` §3.8, §5, §6 Phase 1
 
 ## 1. Goal (plain words)
