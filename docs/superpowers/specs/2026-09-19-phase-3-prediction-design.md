@@ -1,7 +1,7 @@
 # Phase 3 — Prediction v2 (learned consumption) + Worker: Design
 
 Date: 2026-09-19
-Status: DRAFT
+Status: IMPLEMENTED 2026-09-19 (branch phase-3-prediction). Live check: 14-day backfill → milk learned 1.14 l/day (true 1.1), water 8.43 (true 8.0). Screenshot docs/screenshots/phase-3-provenance.png.
 Parent: roadmap §3.5, §6 Phase 3
 
 ## 1. Goal (plain words)
