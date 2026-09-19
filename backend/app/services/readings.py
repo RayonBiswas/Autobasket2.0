@@ -59,7 +59,7 @@ def ingest_readings(
             continue
         state = set_remaining(
             db, household, slot.product_id, fraction,
-            source=models.EventSource.WEIGHT, slot_id=slot.id, weight_grams=grams,
+            source=models.EventSource.WEIGHT, slot_id=slot.id, weight_grams=grams, recorded_at=now,
         )
         applied.append({"slot_id": slot.id, "product_id": slot.product_id, "remaining_fraction": state.remaining_fraction})
 

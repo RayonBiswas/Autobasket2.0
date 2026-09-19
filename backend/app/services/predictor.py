@@ -1,4 +1,8 @@
-"""Phase-1 predictor: household-size prior only. Phase 3 replaces this with rates learned from inventory_events."""
+"""Turns a remaining amount and a daily rate into 'runs out in N days' and a status.
+
+The daily rate comes from services/consumption (learned from history) with the household-size prior below as
+the cold-start guess.
+"""
 
 # Typical daily use per person, in the product's pack unit (kg or l).
 BASE_USAGE = {
@@ -9,6 +13,11 @@ BASE_USAGE = {
     "dal": {"adult": 0.08, "child": 0.04},
 }
 DEFAULT_DAILY_USAGE = 0.2
+
+# Reorder when the item will not outlast a delivery plus one day of margin.
+LEAD_TIME_DAYS = 1.0
+SAFETY_DAYS = 1.0
+WARNING_DAYS = 5.0
 
 
 def estimate_daily_usage(product_name: str, household) -> float:
@@ -27,21 +36,26 @@ def estimate_daily_usage(product_name: str, household) -> float:
     return round(total, 2)
 
 
+def needs_reorder(days_left: float) -> bool:
+    return days_left <= LEAD_TIME_DAYS + SAFETY_DAYS
+
+
 def status_for(days_left: float) -> str:
-    if days_left > 5:
-        return "safe"
-    if days_left > 2:
+    if needs_reorder(days_left):
+        return "critical"
+    if days_left <= WARNING_DAYS:
         return "warning"
-    return "critical"
+    return "safe"
 
 
 def predict_state(state, product, household) -> dict:
-    """days_left / status for one inventory row. Uses a learned daily_rate when present, else the prior."""
-    daily = state.daily_rate or estimate_daily_usage(product.name, household)
+    """days_left / status / needs_reorder for one inventory row."""
+    daily = state.daily_rate if state.daily_rate is not None else estimate_daily_usage(product.name, household)
     remaining = state.remaining_fraction * product.pack_size
     days_left = remaining / daily if daily > 0 else 999
     return {
         "days_left": round(days_left, 2),
         "status": status_for(days_left),
-        "estimated_daily_usage": round(daily, 2),
+        "needs_reorder": needs_reorder(days_left),
+        "estimated_daily_usage": round(daily, 3),
     }

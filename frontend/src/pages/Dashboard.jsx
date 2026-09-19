@@ -24,6 +24,14 @@ function runsOut(days) {
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
+// Where the "runs out" number comes from, so a young guess is not over-trusted.
+function provenance(r) {
+  const days = Math.round(r.observed_days ?? 0);
+  if (r.rate_method === "learned") return `Based on ${days} days of use`;
+  if (r.rate_method === "blended") return `Learning, ${days} day${days === 1 ? "" : "s"} so far`;
+  return "Estimated from household size";
+}
+
 const styles = `
   .lead-list { display: flex; flex-direction: column; gap: 6px; font-size: 1.25rem; line-height: 1.35; }
   .lead-list strong { font-weight: 600; }
@@ -172,6 +180,7 @@ function Dashboard() {
                   </div>
                   <div className="tile-qty">{r.remaining_qty} of {r.pack_size} {r.unit} left</div>
                   <div className="tile-when">{runsOut(r.days_left) ? cap(runsOut(r.days_left)) : "Usage not known yet"}</div>
+                  <div className="small muted">{provenance(r)}</div>
                 </button>
               );
             })}

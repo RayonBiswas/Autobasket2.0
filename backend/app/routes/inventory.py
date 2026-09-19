@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from .. import models
 from ..api.deps import current_household, get_db
 from ..models.base import utcnow
-from ..services.inventory import list_states, set_remaining, state_row
+from ..services.inventory import list_states, recompute_state, reorder_list, set_remaining, state_row
 
 router = APIRouter()
 
@@ -19,6 +19,27 @@ class RemainingUpdate(BaseModel):
 @router.get("")
 def list_inventory(household: models.Household = Depends(current_household), db: Session = Depends(get_db)):
     return {"inventory": list_states(db, household)}
+
+
+@router.get("/reorder")
+def list_reorder(household: models.Household = Depends(current_household), db: Session = Depends(get_db)):
+    """What needs buying now, soonest first."""
+    return {"reorder": reorder_list(db, household)}
+
+
+@router.post("/recompute")
+def recompute(household: models.Household = Depends(current_household), db: Session = Depends(get_db)):
+    """Re-learn rates and refresh predictions for this household right now."""
+    rows = (
+        db.query(models.InventoryState, models.Product)
+        .join(models.Product, models.Product.id == models.InventoryState.product_id)
+        .filter(models.InventoryState.household_id == household.id)
+        .all()
+    )
+    for state, product in rows:
+        recompute_state(db, state, product, household)
+    db.commit()
+    return {"recomputed": len(rows)}
 
 
 @router.get("/{product_id}/history")
