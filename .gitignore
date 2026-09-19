@@ -13,3 +13,8 @@ node_modules/
 dist/
 build/
 .DS_Store
+# Added by code-review-graph
+.code-review-graph/
+
+# Per-machine Claude Code permissions
+.claude/settings.local.json
