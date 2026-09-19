@@ -39,6 +39,10 @@ class InventoryState(Base):
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
     remaining_fraction: Mapped[float] = mapped_column(default=1.0)
     daily_rate: Mapped[float | None]
+    # Where daily_rate came from: confidence 0..1, method prior|blended|learned, days of history counted.
+    rate_confidence: Mapped[float | None]
+    rate_method: Mapped[str | None] = mapped_column(String(12))
+    observed_days: Mapped[float | None]
     days_left: Mapped[float | None]
     status: Mapped[str] = mapped_column(String(16), default=StockStatus.UNKNOWN)
     updated_at: Mapped[datetime] = ts_column(onupdate=utcnow)
