@@ -4,23 +4,9 @@ from sqlalchemy.orm import Session
 from .. import models
 from ..api.deps import current_household, get_db
 from ..services.inventory import find_product
-from ..services.ranking import rank_offers
+from ..services.ranking import offers_for_product, rank_offers
 
 router = APIRouter()
-
-
-def offers_for_product(db: Session, product: models.Product) -> list[tuple[models.Vendor, models.VendorOffer]]:
-    """In-stock offers from active vendors for one product."""
-    return (
-        db.query(models.Vendor, models.VendorOffer)
-        .join(models.VendorOffer, models.VendorOffer.vendor_id == models.Vendor.id)
-        .filter(
-            models.VendorOffer.product_id == product.id,
-            models.VendorOffer.in_stock.is_(True),
-            models.Vendor.is_active.is_(True),
-        )
-        .all()
-    )
 
 
 @router.get("/compare/{product_name}")

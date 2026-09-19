@@ -1,41 +1,29 @@
-import sys
-from datetime import datetime
-from pathlib import Path
-
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 from app import models
 from app.agent import tools
 
 
-@pytest.fixture()
-def db_session():
-    engine = create_engine("sqlite:///:memory:")
-    models.Base.metadata.create_all(bind=engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    try:
-        yield session
-    finally:
-        session.close()
-
-
 def test_critical_item_appears_as_urgent_in_shopping_list(db_session):
-    # 2 adults + 1 child drink ~1.15 L milk/day (predictor base table).
-    # 1 L left -> < 1 day -> status "critical".
-    db_session.add(models.Household(adults=2, children=1, food_habit="mixed"))
-    db_session.add(models.Item(
-        name="milk", total_qty=10, remaining_qty=1, min_threshold=2,
-        last_updated=datetime.utcnow(),
-    ))
+    # 2 adults + 1 child drink ~1.15 L milk/day (predictor prior). 0.1 of a 1 L pack -> < 1 day -> "critical".
+    household = models.Household(name="Home", adults=2, children=1, food_habit="mixed")
+    milk = models.Product(name="milk", category="dairy", unit="l", pack_size=1)
+    db_session.add_all([household, milk])
+    db_session.flush()
+    db_session.add(models.InventoryState(household_id=household.id, product_id=milk.id, remaining_fraction=0.1))
     db_session.commit()
 
-    result = tools.build_shopping_list(db_session)
+    result = tools.build_shopping_list(db_session, household)
 
     names = [row["name"] for row in result["shopping_list"]]
     assert names == ["milk"]
     assert result["shopping_list"][0]["priority"] == "urgent"
+
+
+def test_safe_items_are_not_listed(db_session):
+    household = models.Household(name="Home", adults=1, children=0)
+    water = models.Product(name="water", category="beverages", unit="l", pack_size=20)
+    db_session.add_all([household, water])
+    db_session.flush()
+    db_session.add(models.InventoryState(household_id=household.id, product_id=water.id, remaining_fraction=1.0))
+    db_session.commit()
+
+    assert tools.build_shopping_list(db_session, household)["shopping_list"] == []

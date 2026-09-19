@@ -4,10 +4,26 @@ Phase 1 keeps the original 40% price / 60% rating blend. Phase 5 adds distance, 
 with per-household weights.
 """
 
+from sqlalchemy.orm import Session
+
 from .. import models
 
 PRICE_WEIGHT = 0.4
 RATING_WEIGHT = 0.6
+
+
+def offers_for_product(db: Session, product: models.Product) -> list[tuple[models.Vendor, models.VendorOffer]]:
+    """In-stock offers from active vendors for one product."""
+    return (
+        db.query(models.Vendor, models.VendorOffer)
+        .join(models.VendorOffer, models.VendorOffer.vendor_id == models.Vendor.id)
+        .filter(
+            models.VendorOffer.product_id == product.id,
+            models.VendorOffer.in_stock.is_(True),
+            models.Vendor.is_active.is_(True),
+        )
+        .all()
+    )
 
 
 def rank_offers(pairs: list[tuple[models.Vendor, models.VendorOffer]]) -> list[dict]:

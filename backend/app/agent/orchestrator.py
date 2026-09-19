@@ -141,12 +141,12 @@ def _is_rejection_message(text: str) -> bool:
     return any(phrase in msg for phrase in ["cancel", "no", "decline", "abort", "stop"])
 
 
-def run_heuristic_agent(user_message: str, db: Session, session_id: str | None = None) -> tuple:
+def run_heuristic_agent(user_message: str, db: Session, household, session_id: str | None = None) -> tuple:
     """Fallback intelligence matching user commands to db tools."""
     msg = user_message.lower()
 
     if "shopping list" in msg or "restock" in msg:
-        data = tools.build_shopping_list(db)
+        data = tools.build_shopping_list(db, household)
         if not data["shopping_list"]:
             return "No urgent restocks are needed right now.", "build_shopping_list"
         lines = ["### Suggested Shopping List"]
@@ -160,7 +160,7 @@ def run_heuristic_agent(user_message: str, db: Session, session_id: str | None =
             if token in msg:
                 item_name = token
                 break
-        data = tools.explain_inventory(item_name, db)
+        data = tools.explain_inventory(item_name, db, household)
         if not data["explanations"]:
             return "I couldn't find a matching inventory item to explain.", "explain_inventory"
         lines = ["### Inventory Explanation"]
@@ -176,9 +176,9 @@ def run_heuristic_agent(user_message: str, db: Session, session_id: str | None =
                 item = item[len(prefix) + 1:].strip()
             elif item.startswith(prefix):
                 item = item[len(prefix):].strip()
-        data = tools.compare_prices(item, db)
+        data = tools.compare_prices(item, db, household)
         if not data["comparison"]:
-            return f"I couldn't find any vendor prices for '{item}'. Try running `/seed/vendors` to populate vendor prices first.", "compare_prices"
+            return f"I couldn't find any vendor prices for '{item}'. Try running `/seed/dev` to populate vendor prices first.", "compare_prices"
         result_str = f"### Prices for {item.capitalize()}\n"
         for v in data["comparison"]:
             result_str += f"- **{v['vendor_name']}**: ₹{v['price']} (Rating: {v['rating']}★) - *{v['recommendation']}*\n"
@@ -188,7 +188,7 @@ def run_heuristic_agent(user_message: str, db: Session, session_id: str | None =
     if order_match:
         item = order_match.group(1).strip()
         vendor = order_match.group(2).strip()
-        res = tools.place_pantry_order(item, vendor, db)
+        res = tools.place_pantry_order(item, vendor, db, household)
         if res["success"] and res.get("needs_confirmation"):
             if session_id:
                 memory.set_pending_confirmation(session_id, {"order_id": res.get("order_id"), "message": res.get("message")})
@@ -203,24 +203,24 @@ def run_heuristic_agent(user_message: str, db: Session, session_id: str | None =
         habit_match = re.search(r'(veg|non-veg|mixed)', msg)
 
         if adults_match or children_match or habit_match:
-            current = tools.get_household_settings(db)
+            current = tools.get_household_settings(db, household)
             adults = int(adults_match.group(1)) if adults_match else current["adults"]
             children = int(children_match.group(1)) if children_match else current["children"]
             habit = habit_match.group(1) if habit_match else current["food_habit"]
 
-            tools.set_household_settings(adults, children, habit, db)
+            tools.set_household_settings(adults, children, habit, db, household)
             return f"🏠 **Household Configuration Updated!** Adults: {adults}, Children: {children}, Preference: '{habit}'.", "set_household_settings"
-        h = tools.get_household_settings(db)
+        h = tools.get_household_settings(db, household)
         return f"🏠 **Household Config:**\n- Adults: {h['adults']}\n- Children: {h['children']}\n- Food Preference: {h['food_habit'].capitalize()}", "get_household_settings"
 
     if any(k in msg for k in ["inventory", "status", "stock", "pantry", "check", "items", "list"]):
-        data = tools.get_pantry_status(db)
+        data = tools.get_pantry_status(db, household)
         if not data["inventory"]:
-            return "Pantry is currently empty. Run `/seed/vendors` or create items to check.", "get_pantry_status"
+            return "Pantry is currently empty. Run `/seed/dev` or update an item to check.", "get_pantry_status"
         res_str = "### Pantry Stock Status\n"
         for item in data["inventory"]:
             status_emoji = "🟢" if item["status"] == "safe" else ("🟡" if item["status"] == "warning" else "🔴")
-            res_str += f"- {status_emoji} **{item['name'].capitalize()}**: {item['remaining_qty']}/{item['total_qty']} remaining (Est. {item['days_left']} days left) | Status: *{item['status'].upper()}*\n"
+            res_str += f"- {status_emoji} **{item['name'].capitalize()}**: {item['remaining_qty']}/{item['pack_size']} {item['unit']} remaining (Est. {item['days_left']} days left) | Status: *{item['status'].upper()}*\n"
         return res_str, "get_pantry_status"
 
     if "vendor" in msg or "shop" in msg or "store" in msg:
@@ -249,52 +249,53 @@ Here are some commands you can type:
     return default_resp, "default_chat"
 
 
-def _execute_tool(tool_name: str, tool_args: dict, session_id: str, db: Session) -> tuple[dict | None, dict | None, bool]:
+def _execute_tool(tool_name: str, tool_args: dict, session_id: str, db: Session, household) -> tuple[dict | None, dict | None, bool]:
     tool_result = None
     pending_confirmation = None
     stop = False
 
     if tool_name == "get_pantry_status":
-        tool_result = tools.get_pantry_status(db)
+        tool_result = tools.get_pantry_status(db, household)
     elif tool_name == "get_vendors":
         tool_result = tools.get_vendors(db)
     elif tool_name == "compare_prices":
-        tool_result = tools.compare_prices(tool_args.get("item_name", ""), db)
+        tool_result = tools.compare_prices(tool_args.get("item_name", ""), db, household)
     elif tool_name == "place_pantry_order":
-        tool_result = tools.place_pantry_order(tool_args.get("item_name", ""), tool_args.get("vendor_name", ""), db)
+        tool_result = tools.place_pantry_order(tool_args.get("item_name", ""), tool_args.get("vendor_name", ""), db, household)
         if tool_result.get("needs_confirmation"):
             pending_confirmation = {"order_id": tool_result.get("order_id"), "message": tool_result.get("message")}
             memory.set_pending_confirmation(session_id, pending_confirmation)
             stop = True
     elif tool_name == "confirm_pending_order":
-        tool_result = tools.confirm_pending_order(int(tool_args.get("order_id", 0)), db)
+        tool_result = tools.confirm_pending_order(int(tool_args.get("order_id", 0)), db, household)
         if tool_result.get("success"):
             memory.clear_pending_confirmation(session_id)
             stop = True
     elif tool_name == "update_item_qty":
-        tool_result = tools.update_item_qty(tool_args.get("item_name", ""), float(tool_args.get("remaining_qty", 0)), db)
+        tool_result = tools.update_item_qty(tool_args.get("item_name", ""), float(tool_args.get("remaining_qty", 0)), db, household)
     elif tool_name == "get_household_settings":
-        tool_result = tools.get_household_settings(db)
+        tool_result = tools.get_household_settings(db, household)
     elif tool_name == "set_household_settings":
         tool_result = tools.set_household_settings(
             int(tool_args.get("adults", 2)),
             int(tool_args.get("children", 1)),
             tool_args.get("food_habit", "mixed"),
             db,
+            household,
         )
     elif tool_name == "get_recent_orders":
-        tool_result = tools.get_recent_orders(db)
+        tool_result = tools.get_recent_orders(db, household)
     elif tool_name == "build_shopping_list":
-        tool_result = tools.build_shopping_list(db)
+        tool_result = tools.build_shopping_list(db, household)
     elif tool_name == "explain_inventory":
-        tool_result = tools.explain_inventory(tool_args.get("item_name"), db)
+        tool_result = tools.explain_inventory(tool_args.get("item_name"), db, household)
     else:
         tool_result = {"error": f"Tool '{tool_name}' is not supported."}
 
     return tool_result, pending_confirmation, stop
 
 
-def agent_node(state: AgentState, db: Session) -> AgentState:
+def agent_node(state: AgentState, db: Session, household) -> AgentState:
     session_id = state["session_id"]
     user_message = state["user_message"]
     pending_confirmation = memory.get_pending_confirmation(session_id)
@@ -319,14 +320,14 @@ def agent_node(state: AgentState, db: Session) -> AgentState:
     messages = _build_messages(session_id, user_message)
     raw_response = query_llm(messages)
     if not raw_response:
-        heuristic_resp, _ = run_heuristic_agent(user_message, db, session_id)
+        heuristic_resp, _ = run_heuristic_agent(user_message, db, household, session_id)
         state["final_response"] = heuristic_resp
         state["stop"] = True
         return state
 
     parsed = clean_and_parse_json(raw_response)
     if not parsed:
-        heuristic_resp, _ = run_heuristic_agent(user_message, db, session_id)
+        heuristic_resp, _ = run_heuristic_agent(user_message, db, household, session_id)
         state["final_response"] = heuristic_resp
         state["stop"] = True
         return state
@@ -342,18 +343,18 @@ def agent_node(state: AgentState, db: Session) -> AgentState:
         state["stop"] = True
         return state
 
-    heuristic_resp, _ = run_heuristic_agent(user_message, db, session_id)
+    heuristic_resp, _ = run_heuristic_agent(user_message, db, household, session_id)
     state["final_response"] = heuristic_resp
     state["stop"] = True
     return state
 
 
-def tool_node(state: AgentState, db: Session) -> AgentState:
+def tool_node(state: AgentState, db: Session, household) -> AgentState:
     session_id = state["session_id"]
     tool_name = state.get("tool_name")
     tool_args = state.get("tool_args", {})
 
-    tool_result, pending_confirmation, stop = _execute_tool(tool_name, tool_args, session_id, db)
+    tool_result, pending_confirmation, stop = _execute_tool(tool_name, tool_args, session_id, db, household)
     state["tool_result"] = tool_result
     state["pending_confirmation"] = pending_confirmation
     state["stop"] = stop
@@ -383,10 +384,10 @@ def route_after_tool(state: AgentState) -> str:
     return "agent"
 
 
-def build_graph(db: Session):
+def build_graph(db: Session, household):
     workflow = StateGraph(AgentState)
-    workflow.add_node("agent", lambda state: agent_node(state, db))
-    workflow.add_node("tool", lambda state: tool_node(state, db))
+    workflow.add_node("agent", lambda state: agent_node(state, db, household))
+    workflow.add_node("tool", lambda state: tool_node(state, db, household))
     workflow.add_node("final", lambda state: state)
     workflow.add_edge(START, "agent")
     workflow.add_conditional_edges("agent", route_after_agent, {"tool": "tool", "final": "final"})
@@ -395,7 +396,7 @@ def build_graph(db: Session):
     return workflow.compile()
 
 
-def run_agent_chat(user_message: str, session_id: str, db: Session) -> str:
+def run_agent_chat(user_message: str, session_id: str, db: Session, household) -> str:
     """Main agent orchestration loop with a LangGraph-style ReAct flow."""
     memory.add_message(session_id, "user", user_message)
 
@@ -411,7 +412,7 @@ def run_agent_chat(user_message: str, session_id: str, db: Session) -> str:
         "stop": False,
     }
 
-    graph = build_graph(db)
+    graph = build_graph(db, household)
     result = graph.invoke(state)
     final_response = result.get("final_response")
     if not final_response:
