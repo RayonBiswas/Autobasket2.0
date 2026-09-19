@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Dashboard from "./pages/Dashboard";
 import Camera from "./pages/Camera";
+import Login from "./pages/Login";
+import Slots from "./pages/Slots";
+import { clearToken, getToken } from "./services/auth";
 
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap');
@@ -336,6 +339,13 @@ const styles = `
   }
 
   .mobile-nav-icon { font-size: 20px; }
+
+  .sidebar-signout {
+    margin-top: 10px; width: 100%; padding: 9px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--border); background: transparent; color: var(--muted);
+    font-family: 'DM Mono', monospace; font-size: 12px;
+  }
+  .sidebar-signout:hover { color: var(--text); border-color: var(--accent); }
 `;
 
 const pages = [
@@ -345,6 +355,13 @@ const pages = [
     icon: "🛒",
     badge: null,
     description: "AI Marketplace",
+  },
+  {
+    id: "slots",
+    label: "Fridge Slots",
+    icon: "▦",
+    badge: null,
+    description: "Trays & Slots",
   },
   {
     id: "camera",
@@ -357,8 +374,30 @@ const pages = [
 
 function App() {
   const [page, setPage] = useState("dashboard");
+  const [token, setToken] = useState(getToken());
+
+  // The API layer fires this when a request comes back 401 (expired/invalid token).
+  useEffect(() => {
+    const onLogout = () => setToken(null);
+    window.addEventListener("ab:logout", onLogout);
+    return () => window.removeEventListener("ab:logout", onLogout);
+  }, []);
+
+  const signOut = () => {
+    clearToken();
+    setToken(null);
+  };
 
   const current = pages.find(p => p.id === page);
+
+  if (!token) {
+    return (
+      <>
+        <style>{styles}</style>
+        <Login onLogin={setToken} />
+      </>
+    );
+  }
 
   return (
     <>
@@ -403,6 +442,7 @@ function App() {
                 <div className="sidebar-version-label">● Online</div>
               </div>
             </div>
+            <button className="sidebar-signout" onClick={signOut}>Sign out</button>
           </div>
         </aside>
 
@@ -425,6 +465,7 @@ function App() {
 
           <div className="app-page" key={page}>
             {page === "dashboard" && <Dashboard />}
+            {page === "slots" && <Slots />}
             {page === "camera" && <Camera />}
           </div>
         </main>
