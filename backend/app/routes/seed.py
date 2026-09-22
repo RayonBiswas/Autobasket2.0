@@ -41,6 +41,8 @@ PRODUCTS = [
 VENDORS = [
     ("Local Kirana", models.VendorKind.KIRANA, 4.2, 25, 0.95),
     ("Blinkit", models.VendorKind.PLATFORM, 4.8, 12, 1.10),
+    ("Zepto", models.VendorKind.PLATFORM, 4.6, 10, 1.08),
+    ("Instamart", models.VendorKind.PLATFORM, 4.4, 15, 1.05),
     ("BigBasket", models.VendorKind.PLATFORM, 4.5, 120, 1.03),
 ]
 

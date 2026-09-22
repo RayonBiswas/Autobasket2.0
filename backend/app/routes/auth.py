@@ -117,6 +117,7 @@ def me(
             "children": household.children,
             "food_habit": household.food_habit,
             "pincode": household.pincode,
+            "priority": household.priority,
         },
         "memberships": [{"household_id": m.household_id, "role": m.role} for m in user.memberships],
     }

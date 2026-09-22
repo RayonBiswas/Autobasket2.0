@@ -18,6 +18,8 @@ WEIGHTS: dict[str, dict[str, float]] = {
 }
 PRIORITIES = tuple(WEIGHTS)
 FAR_KM = 10.0  # beyond this, distance stops mattering (the score bottoms out)
+ETA_SCALE_MIN = 20.0  # ETA score decays as exp(-eta / 20 min): 10 min ≈ 0.61, 30 min ≈ 0.22, 2 h ≈ 0
+ETA_UNKNOWN_MIN = 30  # a seller that promises no delivery time is scored as if it took 30 minutes
 
 
 def haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
@@ -42,14 +44,15 @@ def offers_for_product(db: Session, product: models.Product) -> list[tuple[model
     )
 
 
-def _minmax(value: float | None, lo: float, hi: float, invert: bool) -> float:
-    """0..1 with unknown → neutral 0.5. invert=True means lower is better."""
-    if value is None:
-        return 0.5
-    if hi == lo:
-        return 1.0
-    score = (value - lo) / (hi - lo)
-    return 1 - score if invert else score
+def _price_score(price: float, lo: float, hi: float) -> float:
+    """1 for the cheapest offer, 0 for the dearest, linear in between."""
+    return 1.0 if hi == lo else 1 - (price - lo) / (hi - lo)
+
+
+def _eta_score(eta: int | None) -> float:
+    """Absolute, not relative: a 2-hour delivery scores near zero even when nothing faster is on offer."""
+    minutes = ETA_UNKNOWN_MIN if eta is None else max(eta, 0)
+    return math.exp(-minutes / ETA_SCALE_MIN)
 
 
 def _distance(vendor: models.Vendor, household) -> float | None:
@@ -114,14 +117,13 @@ def rank_offers(
     prices = [r["price"] for r in rows]
     etas = [r["eta_minutes"] for r in rows if r["eta_minutes"] is not None]
     lo_p, hi_p = min(prices), max(prices)
-    lo_e, hi_e = (min(etas), max(etas)) if etas else (0, 0)
     best_rated = max(r["rating"] for r in rows)
     fastest = min(etas) if etas else None
 
     for r in rows:
         parts = {
-            "price": _minmax(r["price"], lo_p, hi_p, invert=True),
-            "eta": _minmax(r["eta_minutes"], lo_e, hi_e, invert=True) if etas else 0.5,
+            "price": _price_score(r["price"], lo_p, hi_p),
+            "eta": _eta_score(r["eta_minutes"]),
             "distance": 0.5 if r["distance_km"] is None else 1 - min(r["distance_km"], FAR_KM) / FAR_KM,
             "rating": r["rating"] / 5,
             "service": r["service_score"],

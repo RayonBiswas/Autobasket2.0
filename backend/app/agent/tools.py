@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from .. import models
 from ..services.inventory import find_product, list_states, set_remaining
 from ..services.ranking import offers_for_product, rank_offers
+from ..services.recommendations import recommend
 
 # Orders above this amount need an explicit "yes" from the user (the guardrail).
 AUTO_APPROVE_LIMIT = 50.0
@@ -31,10 +32,22 @@ def compare_prices(item_name: str, db: Session, household: models.Household):
     product = find_product(db, item_name)
     if product is None:
         return {"item": item_name, "message": "No such product in the catalog.", "comparison": []}
-    comparison = rank_offers(offers_for_product(db, product))
+    comparison = recommend(db, product, household)["offers"]
     if not comparison:
         return {"item": item_name, "message": "No vendor prices found for this item.", "comparison": []}
     return {"item": item_name, "comparison": comparison}
+
+
+def why_vendor(item_name: str, vendor_name: str, db: Session, household: models.Household):
+    """Explain where a vendor lands in the ranking for an item and why."""
+    product = find_product(db, item_name)
+    if product is None:
+        return {"success": False, "error": f"Item '{item_name}' was not found in the catalog."}
+    ranked = rank_offers(offers_for_product(db, product), household=household, priority=household.priority)
+    for position, row in enumerate(ranked, start=1):
+        if row["vendor_name"].lower() == vendor_name.strip().lower():
+            return {"success": True, "position": position, "of": len(ranked), "priority": household.priority, **row}
+    return {"success": False, "error": f"'{vendor_name}' does not sell {product.name} right now."}
 
 
 def _find_vendor(db: Session, vendor_name: str) -> models.Vendor | None:

@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from .. import models
 from ..api.deps import current_household, get_db
+from ..services.ranking import PRIORITIES
 from .slots import slot_view
 
 router = APIRouter()
@@ -15,6 +16,12 @@ class HouseholdPatch(BaseModel):
     adults: int | None = None
     children: int | None = None
     food_habit: str | None = None
+    lat: float | None = None
+    lng: float | None = None
+
+
+class PriorityIn(BaseModel):
+    priority: str
 
 
 def _dump(h: models.Household) -> dict:
@@ -25,6 +32,9 @@ def _dump(h: models.Household) -> dict:
         "adults": h.adults,
         "children": h.children,
         "food_habit": h.food_habit,
+        "priority": h.priority,
+        "lat": h.lat,
+        "lng": h.lng,
     }
 
 
@@ -41,6 +51,20 @@ def patch_me(
 ):
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(household, field, value)
+    db.commit()
+    return _dump(household)
+
+
+@router.put("/me/priority")
+def set_priority(
+    body: PriorityIn,
+    household: models.Household = Depends(current_household),
+    db: Session = Depends(get_db),
+):
+    """What matters most when we rank shops: balanced, price or speed."""
+    if body.priority not in PRIORITIES:
+        raise HTTPException(422, f"priority must be one of {', '.join(PRIORITIES)}")
+    household.priority = body.priority
     db.commit()
     return _dump(household)
 

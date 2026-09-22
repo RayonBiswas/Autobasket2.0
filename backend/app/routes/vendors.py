@@ -18,7 +18,7 @@ def compare_item(
     product = find_product(db, product_name)
     if product is None:
         return []
-    return rank_offers(offers_for_product(db, product))
+    return rank_offers(offers_for_product(db, product), household=household, priority=household.priority)
 
 
 @router.post("/review")

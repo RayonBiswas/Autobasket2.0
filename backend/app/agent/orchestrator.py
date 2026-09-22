@@ -179,10 +179,22 @@ def run_heuristic_agent(user_message: str, db: Session, household, session_id: s
         data = tools.compare_prices(item, db, household)
         if not data["comparison"]:
             return f"I couldn't find any vendor prices for '{item}'. Try running `/seed/dev` to populate vendor prices first.", "compare_prices"
-        result_str = f"### Prices for {item.capitalize()}\n"
+        result_str = f"### Where to buy {item}\n"
         for v in data["comparison"]:
-            result_str += f"- **{v['vendor_name']}**: ₹{v['price']} (Rating: {v['rating']}★) - *{v['recommendation']}*\n"
+            eta = f", about {v['eta_minutes']} min" if v.get("eta_minutes") is not None else ""
+            result_str += f"- **{v['vendor_name']}**: ₹{v['price']}{eta}. {v['reason']}.\n"
         return result_str, "compare_prices"
+
+    why_match = re.search(r"why\s+(?:is\s+)?([a-zA-Z0-9\s\-]+?)\s+(?:for|on)\s+([a-zA-Z0-9\s]+)", msg)
+    if why_match and any(w in msg for w in ("vendor", "shop", "rank", "recommend")):
+        data = tools.why_vendor(why_match.group(2).strip(), why_match.group(1).strip(), db, household)
+        if not data.get("success"):
+            return data["error"], "why_vendor"
+        return (
+            f"{data['vendor_name']} is #{data['position']} of {data['of']} for {why_match.group(2).strip()} "
+            f"(you prefer {data['priority']}): ₹{data['price']}, rated {data['rating']}/5. {data['reason']}.",
+            "why_vendor",
+        )
 
     order_match = re.search(r'(?:order|buy|purchase)\s+([a-zA-Z0-9\s]+)\s+from\s+([a-zA-Z0-9\s\-]+)', msg)
     if order_match:
@@ -260,6 +272,8 @@ def _execute_tool(tool_name: str, tool_args: dict, session_id: str, db: Session,
         tool_result = tools.get_vendors(db)
     elif tool_name == "compare_prices":
         tool_result = tools.compare_prices(tool_args.get("item_name", ""), db, household)
+    elif tool_name == "why_vendor":
+        tool_result = tools.why_vendor(tool_args.get("item_name", ""), tool_args.get("vendor_name", ""), db, household)
     elif tool_name == "place_pantry_order":
         tool_result = tools.place_pantry_order(tool_args.get("item_name", ""), tool_args.get("vendor_name", ""), db, household)
         if tool_result.get("needs_confirmation"):

@@ -27,7 +27,7 @@ def test_compare_endpoint_shape(app_client, login):
     h = _auth(client, login, "v@x.y")
     client.post("/seed/dev", headers=h)
     rows = client.get("/vendors/compare/milk", headers=h).json()
-    assert len(rows) == 3
+    assert len(rows) >= 3
     assert {"vendor_id", "vendor_name", "rating", "price", "final_score"} <= set(rows[0])
     assert rows == sorted(rows, key=lambda r: r["final_score"], reverse=True)
 

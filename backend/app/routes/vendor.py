@@ -12,8 +12,8 @@ from sqlalchemy.orm import Session
 
 from .. import models
 from ..api.deps import current_user, current_vendor, get_db
-from ..models.base import utcnow
 from ..services.orders import OPEN_FOR_VENDOR, IllegalTransition, order_row, transition
+from ..services.scout import upsert_offer
 
 router = APIRouter()
 
@@ -182,30 +182,22 @@ def list_offers(vendor: models.Vendor = Depends(current_vendor), db: Session = D
     return {"offers": [_offer_row(o) for o in offers]}
 
 
-def _upsert(db: Session, vendor: models.Vendor, product_id: int, price: float, in_stock: bool, eta: int | None) -> bool:
+def _upsert(db: Session, vendor: models.Vendor, product: models.Product, price: float, in_stock: bool, eta: int | None) -> bool:
     """Returns True when a new offer was created, False when an existing one was updated."""
-    offer = db.query(models.VendorOffer).filter_by(vendor_id=vendor.id, product_id=product_id).first()
-    created = offer is None
-    if created:
-        offer = models.VendorOffer(vendor_id=vendor.id, product_id=product_id)
-        db.add(offer)
-    offer.price = round(price, 2)
-    offer.in_stock = in_stock
-    offer.eta_minutes = eta
-    offer.source = models.OfferSource.PORTAL
-    offer.fetched_at = utcnow()
-    return created
+    existed = db.query(models.VendorOffer).filter_by(vendor_id=vendor.id, product_id=product.id).first() is not None
+    upsert_offer(db, vendor, product, price, in_stock, eta, models.OfferSource.PORTAL)
+    return not existed
 
 
 @router.put("/offers")
 def upsert_offers(body: OffersIn, vendor: models.Vendor = Depends(current_vendor), db: Session = Depends(get_db)):
     wanted = [o.product_id for o in body.offers]
-    known = {pid for (pid,) in db.query(models.Product.id).filter(models.Product.id.in_(wanted))}
+    known = {p.id: p for p in db.query(models.Product).filter(models.Product.id.in_(wanted))}
     missing = [pid for pid in wanted if pid not in known]
     if missing:
         raise HTTPException(422, f"Unknown product ids: {missing}")
     for o in body.offers:
-        _upsert(db, vendor, o.product_id, o.price, o.in_stock, o.eta_minutes)
+        _upsert(db, vendor, known[o.product_id], o.price, o.in_stock, o.eta_minutes)
     db.commit()
     return {"saved": len(body.offers)}
 
@@ -252,7 +244,7 @@ async def upload_csv(file: UploadFile, vendor: models.Vendor = Depends(current_v
             unknown.append(name)
             continue
         in_stock = row.get("in_stock", "").lower() in TRUE_WORDS
-        if _upsert(db, vendor, product.id, price, in_stock, None):
+        if _upsert(db, vendor, product, price, in_stock, None):
             added += 1
         else:
             updated += 1

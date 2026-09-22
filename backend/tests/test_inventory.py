@@ -10,7 +10,7 @@ def test_seed_then_inventory_and_slots(app_client, login):
     h = _auth(client, login, "seed@x.y")
     seeded = client.post("/seed/dev", headers=h).json()
     assert seeded["products"] >= 20
-    assert seeded["vendors"] == 3
+    assert seeded["vendors"] == 5
     assert len(seeded["device_token"]) > 20
 
     inv = client.get("/inventory", headers=h).json()["inventory"]

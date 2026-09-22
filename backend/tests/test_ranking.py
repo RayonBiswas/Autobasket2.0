@@ -15,7 +15,7 @@ def _pair(name, kind, price, eta, rating=4.0, service=0.5, lat=None, lng=None, r
 
 CHEAP_SLOW = _pair("Sharma Kirana", "kirana", 55, 40, rating=4.2, vid=1)
 FAST_DEAR = _pair("Blinkit", "platform", 68, 10, rating=4.7, vid=2)
-MIDDLE = _pair("Zepto", "platform", 62, 15, rating=4.5, vid=3)
+MIDDLE = _pair("Zepto", "platform", 62, 25, rating=4.5, vid=3)
 
 
 def test_weights_sum_to_one():
