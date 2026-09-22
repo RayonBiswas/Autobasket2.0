@@ -3,6 +3,7 @@ import API from "../services/api";
 import { Link } from "react-router-dom";
 import AgentChatPanel from "../components/AgentChatPanel";
 import Proposals from "../components/Proposals";
+import Gauge from "../components/Gauge";
 import { errorText, useToast } from "../lib/toast";
 import { cap, orderStage, runsOut } from "../lib/format";
 
@@ -11,10 +12,10 @@ const REFRESH_MS = 10000;
 const PRIORITY_LABEL = { balanced: "Balanced pick", price: "Cheapest first", speed: "Fastest first" };
 
 const STATUS = {
-  safe: { label: "Plenty", pill: "pill-ok", gauge: "" },
-  warning: { label: "Getting low", pill: "pill-warn", gauge: "gauge-warn" },
-  critical: { label: "Order soon", pill: "pill-danger", gauge: "gauge-danger" },
-  unknown: { label: "Not measured yet", pill: "pill-muted", gauge: "" },
+  safe: { label: "Plenty for now", pill: "pill-ok" },
+  warning: { label: "Runs out this week", pill: "pill-warn" },
+  critical: { label: "Order soon", pill: "pill-danger" },
+  unknown: { label: "Not measured yet", pill: "pill-muted" },
 };
 
 
@@ -36,6 +37,7 @@ const styles = `
   .tile-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
   .tile-head h3 { font-size: 1.05rem; }
   .tile-qty { font-size: 14px; color: var(--muted); }
+  .tile-qty strong { color: var(--text); font-weight: 600; }
   .tile-when { font-size: 14px; }
   .picks { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 12px; align-items: stretch; }
   .pick { display: flex; flex-direction: column; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: var(--r-tile); background: var(--surface); }
@@ -192,15 +194,13 @@ function Dashboard() {
             {inventory.map((r) => {
               const s = STATUS[r.status] || STATUS.unknown;
               return (
-                <button key={r.product_id} className={`card tile ${s.gauge}`} aria-pressed={selected?.product_id === r.product_id} onClick={() => select(r)}>
+                <button key={r.product_id} className="card tile" aria-pressed={selected?.product_id === r.product_id} onClick={() => select(r)}>
                   <div className="tile-head">
                     <h3>{cap(r.name)}</h3>
                     <span className={`pill ${s.pill}`}>{s.label}</span>
                   </div>
-                  <div className={`gauge ${s.gauge}`} role="img" aria-label={`${Math.round(r.remaining_fraction * 100)} percent left`}>
-                    <div className="gauge-fill" style={{ height: `${Math.round(r.remaining_fraction * 100)}%` }} />
-                  </div>
-                  <div className="tile-qty">{r.remaining_qty} of {r.pack_size} {r.unit} left</div>
+                  <Gauge fraction={r.remaining_fraction} label={`${Math.round(r.remaining_fraction * 100)} percent left, ${r.remaining_qty} ${r.unit} of ${r.pack_size} ${r.unit}`} />
+                  <div className="tile-qty"><strong>{r.remaining_qty} {r.unit}</strong> left of {r.pack_size} {r.unit}</div>
                   <div className="tile-when">{runsOut(r.days_left) ? cap(runsOut(r.days_left)) : "Usage not known yet"}</div>
                   <div className="small muted">{provenance(r)}</div>
                 </button>

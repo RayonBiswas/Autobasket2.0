@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import API from "../services/api";
 import { errorText, useToast } from "../lib/toast";
+import Gauge from "../components/Gauge";
 
 const REFRESH_MS = 5000;
 
@@ -21,16 +22,10 @@ const styles = `
   .head-actions { display: flex; gap: 8px; }
 `;
 
-function pct(fraction) {
-  return fraction == null ? null : Math.round(fraction * 100);
-}
-
 function SlotCard({ slot, products, onChange }) {
   const notify = useToast();
   const [busy, setBusy] = useState(false);
-  const p = pct(slot.remaining_fraction);
   const hasReading = slot.latest_weight_grams != null;
-  const gaugeClass = p == null ? "" : p < 25 ? "gauge-danger" : p < 45 ? "gauge-warn" : "";
 
   const call = async (fn) => {
     setBusy(true);
@@ -53,7 +48,6 @@ function SlotCard({ slot, products, onChange }) {
     <div className={`slot${slot.product_id ? " assigned" : ""}`}>
       <div className="slot-top">
         <span>Slot {slot.position}</span>
-        {p != null && <span>{p}% left</span>}
       </div>
       <select className="select" value={slot.product_id ?? ""} onChange={assign} disabled={busy} aria-label={`Product in slot ${slot.position}`}>
         <option value="">Nothing here</option>
@@ -61,9 +55,7 @@ function SlotCard({ slot, products, onChange }) {
           <option key={pr.id} value={pr.id}>{pr.name} ({pr.pack_size} {pr.unit})</option>
         ))}
       </select>
-      <div className={`gauge gauge-slim ${gaugeClass}`} aria-hidden="true">
-        <div className="gauge-fill" style={{ height: `${p ?? 0}%` }} />
-      </div>
+      <Gauge fraction={slot.remaining_fraction} slim />
       <div className="slot-weight">
         {hasReading ? `${Math.round(slot.latest_weight_grams)} g` : "No weight yet"}
         {slot.latest_at && <small>{new Date(slot.latest_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small>}

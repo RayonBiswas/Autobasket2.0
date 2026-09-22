@@ -176,18 +176,43 @@ a { color: var(--accent); }
 .pill-danger { background: var(--danger-soft); color: var(--danger); }
 .pill-muted { background: var(--surface-2); color: var(--muted); }
 
-/* ---------- the fill gauge (signature element) ---------- */
+/* ---------- the fill gauge (signature element) ----------
+   Drawn as a container: outlined vessel, a lid, tick marks at 25/50/75 %, the level printed on it.
+   Fill colour follows the level (green → amber → red as it empties); the "runs out" forecast lives in the pill. */
 .gauge {
-  position: relative; width: 100%; height: 88px; border-radius: var(--r-gauge);
+  --level: var(--ok);
+  position: relative; width: 100%; height: 104px;
+  border: 2px solid var(--line); border-radius: 6px 6px 16px 16px;
   background: var(--gauge-track); overflow: hidden;
 }
-.gauge-fill {
-  position: absolute; inset: auto 0 0 0; background: var(--ok);
-  transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+.gauge::before {
+  /* the lid */
+  content: ""; position: absolute; top: 0; left: 28%; right: 28%; height: 5px;
+  background: var(--line); border-radius: 0 0 4px 4px; z-index: 2;
 }
-.gauge-warn .gauge-fill { background: var(--warn); }
-.gauge-danger .gauge-fill { background: var(--danger); }
-.gauge-slim { height: 52px; }
+.gauge-fill {
+  position: absolute; inset: auto 0 0 0; background: var(--level);
+  border-top: 2px solid color-mix(in srgb, var(--level) 70%, black);
+  transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s;
+}
+.gauge-ticks {
+  position: absolute; top: 0; bottom: 0; right: 0; width: 10px; pointer-events: none;
+  background-image: linear-gradient(var(--muted), var(--muted)), linear-gradient(var(--muted), var(--muted)), linear-gradient(var(--muted), var(--muted));
+  background-repeat: no-repeat; background-size: 10px 1px;
+  background-position: right 25%, right 50%, right 75%; opacity: 0.7;
+}
+.gauge-pct {
+  position: absolute; top: 9px; left: 9px; padding: 2px 8px; border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent); color: var(--text);
+  font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.gauge.level-high { --level: var(--ok); }
+.gauge.level-mid { --level: var(--warn); }
+.gauge.level-low { --level: var(--danger); }
+.gauge.level-none { --level: var(--line); }
+.gauge.level-none .gauge-pct { color: var(--muted); }
+.gauge-slim { height: 64px; }
+.gauge-slim .gauge-pct { top: 6px; left: 6px; font-size: 12px; }
 
 /* ---------- lists / tables ---------- */
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }
