@@ -4,6 +4,7 @@ import io
 import json
 
 from app import models
+from app.core.config import get_settings
 from app.services import vision
 from app.services.vision import SlotGuess, analyze_tray, identify, match_catalog
 
@@ -36,9 +37,11 @@ def test_identify_parses_and_fails_soft():
 
 
 def test_identify_none_when_unconfigured(monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "")
+    get_settings.cache_clear()
     assert not vision.configured()
     assert identify(JPEG, "image/jpeg", 4, ["milk"]) is None
+    get_settings.cache_clear()
 
 
 def test_match_catalog():
@@ -84,10 +87,10 @@ def test_photo_endpoints(app_client, login, monkeypatch):
     tray = _seeded_tray(client, h)
     files = {"image": ("shelf.jpg", io.BytesIO(JPEG), "image/jpeg")}
 
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     assert client.post(f"/vision/trays/{tray['tray_id']}/photo", files=files, headers=h).status_code == 503
 
     monkeypatch.setenv("OPENAI_API_KEY", "test")
+    get_settings.cache_clear()
     monkeypatch.setattr(vision, "identify", lambda *a, **k: [SlotGuess(1, "curd", 0.9)])
     r = client.post(f"/vision/trays/{tray['tray_id']}/photo", files={"image": ("shelf.jpg", io.BytesIO(JPEG), "image/jpeg")}, headers=h)
     assert r.status_code == 200, r.text

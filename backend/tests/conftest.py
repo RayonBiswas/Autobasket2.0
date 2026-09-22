@@ -12,6 +12,18 @@ import app.models  # noqa: E402,F401  (registers every table on Base)
 from app.database import Base  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _no_real_llm(monkeypatch):
+    """Never call a real LLM or vision model from tests, even when the developer's .env has a key."""
+    monkeypatch.setenv("OPENAI_API_KEY", "")
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
 @pytest.fixture()
 def engine():
     eng = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)

@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation } from "re
 import { ToastProvider } from "./components/Toast";
 import { Icon } from "./lib/icons";
 import Dashboard from "./pages/Dashboard";
-import Detection from "./pages/Detection";
+import Camera from "./pages/Camera";
 import Login from "./pages/Login";
 import Orders from "./pages/Orders";
 import Pay from "./pages/Pay";
@@ -85,7 +85,7 @@ function Shell({ theme, onToggleTheme, onSignOut }) {
           <Route path="/orders" element={<Orders />} />
           <Route path="/pay/:orderId" element={<Pay />} />
           <Route path="/shelves" element={<Slots />} />
-          <Route path="/camera" element={<Detection />} />
+          <Route path="/camera" element={<Camera />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/shop" element={<ShopLayout />}>
             <Route index element={<ShopOrders />} />

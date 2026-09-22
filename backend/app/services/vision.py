@@ -7,7 +7,6 @@ import base64
 import hashlib
 import json
 import logging
-import os
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -44,13 +43,13 @@ Caller = Callable[[str, bytes, str], str]
 
 
 def configured() -> bool:
-    return bool(os.environ.get("OPENAI_API_KEY"))
+    return get_settings().llm_enabled
 
 
 def _openai_caller(prompt: str, image: bytes, mime: str) -> str:
     s = get_settings()
-    base = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-    model = s.vision_model or os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+    base = s.openai_base_url.rstrip("/")
+    model = s.vision_model or s.openai_model
     data_uri = f"data:{mime};base64,{base64.b64encode(image).decode()}"
     body = {
         "model": model,
@@ -68,7 +67,7 @@ def _openai_caller(prompt: str, image: bytes, mime: str) -> str:
     r = httpx.post(
         f"{base}/chat/completions",
         json=body,
-        headers={"Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}"},
+        headers={"Authorization": f"Bearer {s.openai_api_key}"},
         timeout=60,
     )
     r.raise_for_status()

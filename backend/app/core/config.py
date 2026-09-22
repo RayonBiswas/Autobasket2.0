@@ -30,8 +30,18 @@ class Settings(BaseSettings):
     razorpay_key_secret: str | None = None
     razorpay_webhook_secret: str | None = None
 
-    # Vision model (optional). Any OpenAI-compatible endpoint with image input; falls back to the chat settings.
+    # LLM (chat agent + vision). Any OpenAI-compatible endpoint; OpenRouter works. Ollama is used when no key is set.
+    llm_provider: str = "ollama"
+    openai_api_key: str | None = None
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_model: str = "gpt-4o-mini"
+    ollama_model: str = "llama3.1:8b"
+    # Vision model (optional): an image-capable model on the same endpoint; falls back to openai_model.
     vision_model: str | None = None
+
+    @property
+    def llm_enabled(self) -> bool:
+        return bool(self.openai_api_key and self.openai_api_key != "your_openai_api_key_here")
 
     @property
     def telegram_enabled(self) -> bool:

@@ -7,6 +7,7 @@ from typing import TypedDict
 from langgraph.graph import END, START, StateGraph
 from sqlalchemy.orm import Session
 
+from ..core.config import get_settings
 from . import memory, prompts, tools
 
 
@@ -26,7 +27,7 @@ def query_ollama(messages: list) -> str | None:
     """Call the local Ollama chat endpoint with the requested agent model."""
     try:
         url = "http://localhost:11434/api/chat"
-        model_name = os.environ.get("OLLAMA_MODEL", "lfm2.5:8b-toolfix")
+        model_name = os.environ.get("OLLAMA_MODEL") or get_settings().ollama_model
         req_body = {
             "model": model_name,
             "messages": messages,
@@ -50,13 +51,14 @@ def query_ollama(messages: list) -> str | None:
 
 def query_openai(messages: list) -> str | None:
     """Call an OpenAI-compatible chat endpoint when an API key is configured."""
-    api_key = os.environ.get("OPENAI_API_KEY")
+    s = get_settings()
+    api_key = os.environ.get("OPENAI_API_KEY") or (s.openai_api_key if s.llm_enabled else None)
     if not api_key:
         return None
 
     try:
-        model_name = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
-        base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+        model_name = os.environ.get("OPENAI_MODEL") or s.openai_model
+        base_url = (os.environ.get("OPENAI_BASE_URL") or s.openai_base_url).rstrip("/")
         endpoint = f"{base_url}/chat/completions"
         req_body = {
             "model": model_name,
@@ -82,12 +84,13 @@ def query_openai(messages: list) -> str | None:
 
 def query_llm(messages: list) -> str | None:
     """Prefer an API-backed model when configured, otherwise fall back to Ollama."""
-    provider = os.environ.get("LLM_PROVIDER", "").strip().lower()
+    s = get_settings()
+    provider = (os.environ.get("LLM_PROVIDER") or s.llm_provider).strip().lower()
 
     if provider in {"openai", "openai-compatible", "openai_compatible"}:
         return query_openai(messages) or query_ollama(messages)
 
-    if os.environ.get("OPENAI_API_KEY"):
+    if os.environ.get("OPENAI_API_KEY") or s.llm_enabled:
         return query_openai(messages) or query_ollama(messages)
 
     return query_ollama(messages)
