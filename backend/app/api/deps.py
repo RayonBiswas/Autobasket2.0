@@ -46,6 +46,17 @@ def current_household(
     return membership.household
 
 
+def current_vendor(
+    user: models.User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> models.Vendor:
+    """The shop owned by the signed-in user (kirana portal)."""
+    vendor = db.query(models.Vendor).filter(models.Vendor.owner_user_id == user.id).first()
+    if vendor is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "You have not created a shop yet")
+    return vendor
+
+
 def current_device(
     creds: HTTPAuthorizationCredentials | None = Depends(bearer),
     db: Session = Depends(get_db),
@@ -58,4 +69,4 @@ def current_device(
     return device
 
 
-__all__ = ["get_db", "current_user", "current_household", "current_device"]
+__all__ = ["get_db", "current_user", "current_household", "current_vendor", "current_device"]

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from .. import models
 from ..api.deps import current_household, get_db
+from ..services.orders import IllegalTransition, order_row, transition
 
 router = APIRouter()
 
@@ -16,22 +17,6 @@ class OrderItemIn(BaseModel):
 class OrderIn(BaseModel):
     vendor_id: int
     items: list[OrderItemIn] = Field(min_length=1)
-
-
-def order_row(order: models.Order) -> dict:
-    return {
-        "order_id": order.id,
-        "vendor_id": order.vendor_id,
-        "vendor_name": order.vendor.name if order.vendor else None,
-        "status": order.status,
-        "channel": order.channel,
-        "total_amount": order.total_amount,
-        "created_at": order.created_at.isoformat() if order.created_at else None,
-        "items": [
-            {"product_id": i.product_id, "name": i.product.name if i.product else None, "qty": i.qty, "unit_price": i.unit_price}
-            for i in order.items
-        ],
-    }
 
 
 @router.get("")
@@ -70,3 +55,31 @@ def create_order(body: OrderIn, household: models.Household = Depends(current_ho
     db.commit()
     db.refresh(order)
     return order_row(order)
+
+
+def _own_order(db: Session, household: models.Household, order_id: int) -> models.Order:
+    order = db.get(models.Order, order_id)
+    if order is None or order.household_id != household.id:
+        raise HTTPException(404, "Order not found")
+    return order
+
+
+def _move(db: Session, order: models.Order, new_status: str) -> dict:
+    try:
+        transition(order, new_status)
+    except IllegalTransition as exc:
+        raise HTTPException(409, str(exc)) from exc
+    db.commit()
+    db.refresh(order)
+    return order_row(order)
+
+
+@router.post("/{order_id}/confirm")
+def confirm_order(order_id: int, household: models.Household = Depends(current_household), db: Session = Depends(get_db)):
+    """The household's yes: sends the order to the shop."""
+    return _move(db, _own_order(db, household, order_id), models.OrderStatus.CONFIRMED)
+
+
+@router.post("/{order_id}/cancel")
+def cancel_order(order_id: int, household: models.Household = Depends(current_household), db: Session = Depends(get_db)):
+    return _move(db, _own_order(db, household, order_id), models.OrderStatus.CANCELLED)
