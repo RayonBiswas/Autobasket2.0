@@ -17,13 +17,14 @@ from .enums import (
 from .inventory import InventoryEvent, InventoryState
 from .notify import Notification
 from .orders import Order, OrderItem
+from .vision import VisionResult
 
 __all__ = [
     "User", "OtpCode", "Household", "HouseholdMember",
     "Device", "Tray", "Slot", "SlotReading",
     "Product", "Vendor", "VendorOffer", "PriceSnapshot",
     "InventoryEvent", "InventoryState",
-    "Order", "OrderItem", "Notification",
+    "Order", "OrderItem", "Notification", "VisionResult",
     "UserRole", "MemberRole", "ProductUnit", "EventSource", "StockStatus",
     "VendorKind", "OfferSource", "OrderStatus", "OrderChannel",
 ]

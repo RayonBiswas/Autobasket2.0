@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from .. import models
 from ..api.deps import current_household, get_db
 from ..services.readings import fraction_from_weight, latest_reading
+from ..services.vision import vision_block
 
 router = APIRouter()
 
@@ -45,6 +46,7 @@ def slot_view(db: Session, slot: models.Slot) -> dict:
         "latest_weight_grams": grams,
         "latest_at": reading.recorded_at.isoformat() if reading else None,
         "remaining_fraction": fraction_from_weight(grams, slot.tare_grams, slot.full_grams) if grams is not None else None,
+        "vision": vision_block(db, slot),
     }
 
 

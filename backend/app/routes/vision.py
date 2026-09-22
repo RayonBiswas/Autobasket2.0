@@ -1,59 +1,73 @@
-import base64
+"""Photos of a shelf → what is in each slot. Uploaded by the household (phone) or the fridge device (camera)."""
 
-import cv2
-import numpy as np
-from fastapi import APIRouter
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from sqlalchemy.orm import Session
+
+from .. import models
+from ..api.deps import current_device, current_household, get_db
+from ..services import vision
 
 router = APIRouter()
 
-class ImageData(BaseModel):
-    image: str
+MAX_BYTES = 8 * 1024 * 1024
+ALLOWED = {"image/jpeg", "image/png", "image/webp"}
 
-@router.post("/water-level")
-def detect_water_level(data: ImageData):
 
-    try:
-        # Decode base64 image
-        image_data = data.image.split(",")[1]
-        decoded = base64.b64decode(image_data)
+async def _read_image(file: UploadFile) -> tuple[bytes, str]:
+    mime = (file.content_type or "").lower()
+    if mime not in ALLOWED:
+        raise HTTPException(415, "Send a JPEG, PNG or WebP photo")
+    data = await file.read()
+    if len(data) > MAX_BYTES:
+        raise HTTPException(413, "That photo is over 8 MB; use a smaller one")
+    if not data:
+        raise HTTPException(422, "The photo is empty")
+    return data, mime
 
-        np_arr = np.frombuffer(decoded, np.uint8)
-        img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-        if img is None:
-            return {"water_percentage": 0, "low": True}
+def _analyze(db: Session, tray: models.Tray, data: bytes, mime: str) -> dict:
+    if not vision.configured():
+        raise HTTPException(503, "Vision is not set up on this server: set OPENAI_API_KEY (and VISION_MODEL) to enable it")
+    blocks = vision.analyze_tray(db, tray, data, mime)
+    if blocks is None:
+        raise HTTPException(502, "The vision model didn't answer. Try again in a moment")
+    return {
+        "tray_id": tray.id,
+        "position": tray.position,
+        "slots": [{"slot_id": s.id, "position": s.position, "product_id": s.product_id, "vision": b} for s, b in zip(tray.slots, blocks, strict=True)],
+    }
 
-        height = img.shape[0]
 
-        # Convert to HSV
-        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+@router.post("/trays/{tray_id}/photo")
+async def household_photo(
+    tray_id: int,
+    image: UploadFile,
+    household: models.Household = Depends(current_household),
+    db: Session = Depends(get_db),
+):
+    """A phone photo of one shelf. Returns what the camera thinks sits in each slot."""
+    tray = (
+        db.query(models.Tray)
+        .join(models.Device, models.Device.id == models.Tray.device_id)
+        .filter(models.Tray.id == tray_id, models.Device.household_id == household.id)
+        .first()
+    )
+    if tray is None:
+        raise HTTPException(404, "Shelf not found")
+    data, mime = await _read_image(image)
+    return _analyze(db, tray, data, mime)
 
-        # Blue color range (tune if needed)
-        lower_blue = np.array([90, 50, 50])
-        upper_blue = np.array([130, 255, 255])
 
-        mask = cv2.inRange(hsv, lower_blue, upper_blue)
-
-        # Count blue pixels row-wise
-        row_counts = np.sum(mask > 0, axis=1)
-
-        blue_rows = np.where(row_counts > 10)[0]
-
-        if len(blue_rows) == 0:
-            return {"water_percentage": 0, "low": True}
-
-        top_water = min(blue_rows)
-        water_height = height - top_water
-
-        water_percentage = int((water_height / height) * 100)
-
-        low = water_percentage < 25
-
-        return {
-            "water_percentage": water_percentage,
-            "low": low
-        }
-
-    except Exception as e:
-        return {"error": str(e)}
+@router.post("/device/trays/{position}/photo")
+async def device_photo(
+    position: int,
+    image: UploadFile,
+    device: models.Device = Depends(current_device),
+    db: Session = Depends(get_db),
+):
+    """The fridge camera's photo of one tray after the door closes (device token)."""
+    tray = db.query(models.Tray).filter_by(device_id=device.id, position=position).first()
+    if tray is None:
+        raise HTTPException(404, "No tray at that position")
+    data, mime = await _read_image(image)
+    return _analyze(db, tray, data, mime)
