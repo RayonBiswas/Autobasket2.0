@@ -114,6 +114,22 @@ python -m app.worker        # recomputes every 15 minutes
 To demo learning without waiting a week, let the simulator post two weeks of history first:
 `python edge/simulator.py --backfill-days 14`.
 
+## What the camera does
+
+Weights say *how much* is left; the camera says *what* it is. A photo of one shelf goes to an image-capable model
+(any OpenAI-compatible endpoint: set `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `VISION_MODEL` or `OPENAI_MODEL`)
+with the catalog names and a strict "JSON, one entry per slot" prompt. Each answer is matched to the catalog and
+stored in `vision_results` (only a hash of the photo is kept). The Shelves and Camera pages then show, per slot:
+
+- **Camera and scale agree**: the model saw what you assigned.
+- **Not assigned yet**: an empty slot with a recognised item, one tap assigns it.
+- **Different from what's assigned**: someone put curd where milk was; one tap fixes the assignment.
+
+Upload from a phone with `POST /vision/trays/{tray_id}/photo`, or from the fridge device with
+`POST /vision/device/trays/{position}/photo` (Phase 8 sends one per shelf on every door close). Without a key the
+endpoint answers 503 with the variables to set; it never guesses. `docs/screenshots/phase-7-sample-shelf.jpg` is a
+labelled test image the model reads correctly; a real fridge photo is the intended input.
+
 ## From alert to verified delivery
 
 The background worker checks every household every 15 minutes. For each product that will not outlast a
