@@ -1,0 +1,24 @@
+// Copy this file to config.h (gitignored) next to fridge_cam.ino and fill it in.
+#pragma once
+
+#define WIFI_SSID        "your-wifi-name"
+#define WIFI_PASS        "your-wifi-password"
+
+// Where the API lives. Local test: "http://192.168.1.20:8000". Deployed: "https://fridge.example.com/api".
+#define API_URL          "http://192.168.1.20:8000"
+
+// Device key from the app: Shelves -> Add a fridge (shown once).
+#define DEVICE_TOKEN     "paste-the-device-key-here"
+
+// Which shelf this camera and scale node serve (1 = first shelf as created in the app).
+#define TRAY_POSITION    1
+
+// Post weights this often even when the door stays shut (seconds).
+#define READINGS_EVERY_S 300
+
+// Wait this long after the door closes before weighing and photographing (milliseconds).
+#define SETTLE_MS        3000
+
+// 1 = accept any HTTPS certificate (the ESP32 has no root-CA store by default). Fine at home; for a public
+// server, set to 0 and add the server's root CA with secure.setCACert() in fridge_cam.ino.
+#define TLS_INSECURE     1

@@ -65,3 +65,20 @@ jobs:
           cp .env.production.example .env.production
           sed -i 's/^POSTGRES_PASSWORD=$/POSTGRES_PASSWORD=ci/' .env.production
           docker compose -f docker-compose.prod.yml --env-file .env.production build
+
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install cores
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install arduino:avr
+          arduino-cli core install esp32:esp32 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+      - name: Compile scale node (Arduino Uno)
+        run: arduino-cli compile --fqbn arduino:avr:uno edge/arduino/scale_node
+      - name: Compile fridge camera (ESP32-CAM)
+        run: |
+          cp edge/esp32cam/fridge_cam/config.h.example edge/esp32cam/fridge_cam/config.h
+          arduino-cli compile --fqbn esp32:esp32:esp32cam edge/esp32cam/fridge_cam
