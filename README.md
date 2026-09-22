@@ -230,6 +230,20 @@ $env:AB_DEVICE_TOKEN = "<token from Slots page → Add device, or /seed/dev>"
 
 ![Dashboard](docs/screenshots/phase-2-dashboard.png)
 
+## Deploying
+
+The whole product runs from one command on a small VPS: Postgres, the API (migrations run on start), the
+background worker, and Caddy serving the web app with automatic HTTPS and proxying `/api/*` to the API.
+
+```bash
+cp .env.production.example .env.production   # fill in the REQUIRED values
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+```
+
+With `APP_ENV=production` the API refuses to start until dev mode is off, the JWT secret is random, the database
+is PostgreSQL and SMTP is set (sign-in codes go out by email). The full 12-step runbook, including Telegram and
+Razorpay webhooks, backups and updates, is in [docs/deploy.md](docs/deploy.md).
+
 ## Environment variables
 
 See `.env.example` — every variable is documented there. The important ones:
