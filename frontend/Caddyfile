@@ -10,7 +10,9 @@
 	}
 
 	# Edge liveness, separate from the API's /api/health.
-	respond /health "ok" 200
+	handle /health {
+		respond "ok" 200
+	}
 
 	# The React app: real files first, everything else falls back to index.html (client-side routes).
 	handle {
