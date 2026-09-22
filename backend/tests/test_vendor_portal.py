@@ -81,7 +81,7 @@ def test_csv_upload_reports_unknown_products(app_client, login):
     body = r.json()
     assert body["added"] == 2 and body["unknown"] == ["unicorn tears"]
 
-    r = client.post("/vendor/offers/csv", files={"file": ("prices.csv", io.BytesIO("product,price\nmilk,60\n".encode()), "text/csv")}, headers=v)
+    r = client.post("/vendor/offers/csv", files={"file": ("prices.csv", io.BytesIO(b"product,price\nmilk,60\n"), "text/csv")}, headers=v)
     assert r.json()["updated"] == 1 and r.json()["added"] == 0
 
 
