@@ -210,7 +210,7 @@ The portal uses a turmeric accent so a shopkeeper always knows which side of the
 
 ## Fridge devices and the simulator
 
-Each fridge has a **device** (a Raspberry Pi) that authenticates with its own token and posts load-cell readings:
+Each fridge has a **device** (an ESP32-CAM plus an Arduino reading the load cells; see `edge/README.md`) that authenticates with its own token and posts load-cell readings:
 
 ```
 GET  /devices/me                    slot layout (tray/slot positions, product, empty/full grams)
