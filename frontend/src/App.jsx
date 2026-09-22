@@ -5,6 +5,8 @@ import { Icon } from "./lib/icons";
 import Dashboard from "./pages/Dashboard";
 import Detection from "./pages/Detection";
 import Login from "./pages/Login";
+import Orders from "./pages/Orders";
+import Pay from "./pages/Pay";
 import Settings from "./pages/Settings";
 import Slots from "./pages/Slots";
 import ShopLayout from "./pages/shop/ShopLayout";
@@ -26,6 +28,7 @@ function readTheme() {
 
 const HOME_NAV = [
   { to: "/", label: "Your fridge", icon: Icon.fridge, end: true },
+  { to: "/orders", label: "Orders", icon: Icon.inbox },
   { to: "/shelves", label: "Shelves", icon: Icon.shelves },
   { to: "/camera", label: "Camera", icon: Icon.camera },
   { to: "/settings", label: "Settings", icon: Icon.gear },
@@ -79,6 +82,8 @@ function Shell({ theme, onToggleTheme, onSignOut }) {
       <main className="main">
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/orders" element={<Orders />} />
+          <Route path="/pay/:orderId" element={<Pay />} />
           <Route path="/shelves" element={<Slots />} />
           <Route path="/camera" element={<Detection />} />
           <Route path="/settings" element={<Settings />} />

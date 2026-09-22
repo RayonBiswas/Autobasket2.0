@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
 import { errorText, useToast } from "../lib/toast";
+import TelegramCard from "../components/TelegramCard";
 
 const PRIORITIES = [
   { id: "balanced", title: "Balanced", blurb: "A fair mix of price, speed and how reliable the shop has been." },
@@ -95,6 +96,8 @@ function Settings() {
           ))}
         </div>
       </section>
+
+      <TelegramCard />
 
       <section>
         <div className="section-title"><h2>Who lives at home</h2><span>Used as the starting guess for how fast things run out</span></div>

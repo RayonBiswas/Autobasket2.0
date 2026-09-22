@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import API from "../services/api";
+import { Link } from "react-router-dom";
 import AgentChatPanel from "../components/AgentChatPanel";
+import Proposals from "../components/Proposals";
 import { errorText, useToast } from "../lib/toast";
 import { cap, orderStage, runsOut } from "../lib/format";
 
@@ -74,7 +76,7 @@ function Dashboard() {
   const loadOrders = useCallback(async () => {
     try {
       const res = await API.get("/orders");
-      setOrders(res.data.orders.slice(0, 8));
+      setOrders(res.data.orders.filter((o) => !['verified', 'cancelled'].includes(o.status)).slice(0, 5));
     } catch { /* keep previous */ }
   }, []);
 
@@ -164,6 +166,8 @@ function Dashboard() {
         </div>
       )}
 
+      {inventory && inventory.length > 0 && <Proposals onOrdered={loadOrders} />}
+
       {inventory && inventory.length > 0 && (
         <section>
           <div className="section-title">
@@ -230,6 +234,7 @@ function Dashboard() {
         <section>
           <div className="section-title">
             <h2>Recent orders</h2>
+            <Link to="/orders">See all orders</Link>
           </div>
           <div className="card" style={{ padding: "4px 8px" }}>
             <table className="table">

@@ -1,0 +1,12 @@
+{
+  "name": "AutoBasket",
+  "short_name": "AutoBasket",
+  "description": "Knows what's in your fridge and orders before it runs out.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f8f7",
+  "theme_color": "#2e7d4f",
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

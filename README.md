@@ -114,6 +114,33 @@ python -m app.worker        # recomputes every 15 minutes
 To demo learning without waiting a week, let the simulator post two weeks of history first:
 `python edge/simulator.py --backfill-days 14`.
 
+## From alert to verified delivery
+
+The background worker checks every household every 15 minutes. For each product that will not outlast a
+delivery, it sends one **proposal**: "Milk runs out tomorrow" with the three best offers and Yes / Skip buttons.
+The same proposal shows on the dashboard ("Needs your yes") and, when linked, in Telegram; answering on either
+side answers both. `POST /notifications/propose` runs the check on demand.
+
+Saying yes creates the order and moves it along this path:
+
+| Seller | After "Yes" | Then |
+|---|---|---|
+| Kirana | `confirmed` with a payment link | `paid` (Razorpay webhook, or the dev page) → shop taps Accept → `accepted` → Delivered → `delivered` |
+| Delivery app | `handoff` with a link into their app search | you finish there |
+
+Both end as **`verified`** the moment the fridge reports that slot refilled (a reading at 60 % or more). After
+delivery the household can give a one-tap star rating, which updates the shop's stars and its reliability score
+(used by the ranking).
+
+- **Telegram**: set `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` and `TELEGRAM_WEBHOOK_SECRET`, point the bot's
+  webhook at `https://<api>/telegram/webhook` with that secret, and users connect from Settings → Alerts on your
+  phone. Without a token, alerts are in-app only.
+- **Payments**: set `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` (test keys work) and `RAZORPAY_WEBHOOK_SECRET`, and
+  point the webhook at `/payments/razorpay/webhook` for the `payment_link.paid` event. Without keys, the payment
+  link opens `/pay/<order>` in the web app, a clearly labelled test page that only works in dev mode.
+- **Installable**: the web app ships a manifest and a small service worker, so it installs on a phone like an app.
+  Push notifications need HTTPS and arrive with deployment.
+
 ## How the top 3 are chosen
 
 `GET /recommendations/milk` returns the three best places to buy milk for the signed-in household. The order is
