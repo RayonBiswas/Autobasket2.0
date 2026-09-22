@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from .. import models
 from ..api.deps import current_household, get_db
-from ..services.orders import IllegalTransition, order_row, transition
+from ..services.orders import IllegalTransition, confirm, order_row, rate, transition
 
 router = APIRouter()
 
@@ -17,6 +17,10 @@ class OrderItemIn(BaseModel):
 class OrderIn(BaseModel):
     vendor_id: int
     items: list[OrderItemIn] = Field(min_length=1)
+
+
+class RateIn(BaseModel):
+    stars: int = Field(ge=1, le=5)
 
 
 @router.get("")
@@ -76,8 +80,22 @@ def _move(db: Session, order: models.Order, new_status: str) -> dict:
 
 @router.post("/{order_id}/confirm")
 def confirm_order(order_id: int, household: models.Household = Depends(current_household), db: Session = Depends(get_db)):
-    """The household's yes: sends the order to the shop."""
-    return _move(db, _own_order(db, household, order_id), models.OrderStatus.CONFIRMED)
+    """The household's yes. Kirana: sent to the shop with a payment link. Delivery app: a link to finish there."""
+    order = _own_order(db, household, order_id)
+    try:
+        return order_row(confirm(db, order, household))
+    except IllegalTransition as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@router.post("/{order_id}/rate")
+def rate_order(order_id: int, body: RateIn, household: models.Household = Depends(current_household), db: Session = Depends(get_db)):
+    """One-tap rating after delivery; feeds the shop's stars and reliability score."""
+    order = _own_order(db, household, order_id)
+    try:
+        return order_row(rate(db, order, body.stars))
+    except IllegalTransition as exc:
+        raise HTTPException(409, str(exc)) from exc
 
 
 @router.post("/{order_id}/cancel")

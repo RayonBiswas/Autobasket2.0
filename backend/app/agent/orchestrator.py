@@ -197,6 +197,15 @@ def run_heuristic_agent(user_message: str, db: Session, household, session_id: s
         )
 
     order_match = re.search(r'(?:order|buy|purchase)\s+([a-zA-Z0-9\s]+)\s+from\s+([a-zA-Z0-9\s\-]+)', msg)
+    if not order_match:
+        bare = re.search(r"(?:order|buy|purchase)\s+(?:some\s+|more\s+)?([a-zA-Z]+)\s*$", msg)
+        if bare:
+            data = tools.order_best(bare.group(1), db, household)
+            if not data.get("success"):
+                return data["error"], "order_best"
+            chosen = data["chosen"]
+            lead = f"Best option: {chosen['vendor_name']} at ₹{chosen['price']} ({chosen['reason'].lower()}). "
+            return lead + data["message"], "order_best"
     if order_match:
         item = order_match.group(1).strip()
         vendor = order_match.group(2).strip()
@@ -272,6 +281,8 @@ def _execute_tool(tool_name: str, tool_args: dict, session_id: str, db: Session,
         tool_result = tools.get_vendors(db)
     elif tool_name == "compare_prices":
         tool_result = tools.compare_prices(tool_args.get("item_name", ""), db, household)
+    elif tool_name == "order_best":
+        tool_result = tools.order_best(tool_args.get("item_name", ""), db, household)
     elif tool_name == "why_vendor":
         tool_result = tools.why_vendor(tool_args.get("item_name", ""), tool_args.get("vendor_name", ""), db, household)
     elif tool_name == "place_pantry_order":

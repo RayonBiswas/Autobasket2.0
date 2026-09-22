@@ -7,11 +7,14 @@ from .routes import (
     devices,
     households,
     inventory,
+    notifications,
     orders,
+    payments,
     products,
     recommendations,
     seed,
     slots,
+    telegram,
     vendor,
     vendors,
     vision,
@@ -36,6 +39,9 @@ app.include_router(slots.router, prefix="/slots", tags=["Slots"])
 app.include_router(vendors.router, prefix="/vendors", tags=["Vendors"])
 app.include_router(vendor.router, prefix="/vendor", tags=["Vendor portal"])
 app.include_router(recommendations.router, prefix="/recommendations", tags=["Recommendations"])
+app.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
+app.include_router(telegram.router, prefix="/telegram", tags=["Telegram"])
+app.include_router(payments.router, prefix="/payments", tags=["Payments"])
 app.include_router(orders.router, prefix="/orders", tags=["Orders"])
 app.include_router(agent.router, prefix="/agent", tags=["Agent"])
 app.include_router(seed.router, prefix="/seed", tags=["Seed"])

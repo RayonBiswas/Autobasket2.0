@@ -130,6 +130,19 @@ def confirm_pending_order(order_id: int, db: Session, household: models.Househol
     }
 
 
+def order_best(item_name: str, db: Session, household: models.Household):
+    """'Order milk' with no shop named: take the top recommendation, then apply the usual confirmation gate."""
+    product = find_product(db, item_name)
+    if product is None:
+        return {"success": False, "error": f"Item '{item_name}' was not found in the catalog."}
+    offers = recommend(db, product, household)["offers"]
+    if not offers:
+        return {"success": False, "error": f"Nobody near you sells {product.name} right now."}
+    result = place_pantry_order(product.name, offers[0]["vendor_name"], db, household)
+    result["chosen"] = offers[0]
+    return result
+
+
 # 5. Manually update quantity of pantry item (remaining_qty in the product's pack unit)
 def update_item_qty(item_name: str, remaining_qty: float, db: Session, household: models.Household):
     product = find_product(db, item_name)

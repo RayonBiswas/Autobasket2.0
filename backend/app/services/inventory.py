@@ -90,6 +90,10 @@ def set_remaining(
     db.flush()
     product = db.get(models.Product, product_id)
     recompute_state(db, state, product, household)
+    # A refill after a delivery proves the order arrived (imported here to avoid an import cycle).
+    from .orders import verify_refill
+
+    verify_refill(db, household, product_id, fraction)
     db.commit()
     db.refresh(state)
     return state

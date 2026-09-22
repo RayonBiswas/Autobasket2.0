@@ -10,6 +10,7 @@ Available Tools:
 2. `get_vendors`: Get the list of registered vendors, their ratings, and types.
    Arguments: None
 3. `compare_prices`: The top 3 places to buy an item (price, delivery time, distance, rating), each with a reason.
+3a. `order_best`: Order an item from the best-ranked seller. Args: item_name.
 3b. `why_vendor`: Explain where a named vendor ranks for an item and why. Args: item_name, vendor_name.
    Arguments: {"item_name": "string"}
 4. `place_pantry_order`: Place an order for an item from a specific vendor.
