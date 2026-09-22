@@ -43,6 +43,8 @@ class Household(Base):
     adults: Mapped[int] = mapped_column(default=2)
     children: Mapped[int] = mapped_column(default=1)
     food_habit: Mapped[str] = mapped_column(String(16), default="mixed")
+    # What matters most when we rank shops: balanced | price | speed (see services/ranking.WEIGHTS).
+    priority: Mapped[str] = mapped_column(String(12), default="balanced")
     created_at: Mapped[datetime] = ts_column()
 
     members: Mapped[list["HouseholdMember"]] = relationship(back_populates="household")

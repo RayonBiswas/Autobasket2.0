@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, String, UniqueConstraint
+from sqlalchemy import ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..database import Base
@@ -71,3 +71,17 @@ class VendorOffer(Base):
 
     vendor: Mapped["Vendor"] = relationship(back_populates="offers")
     product: Mapped["Product"] = relationship()
+
+
+class PriceSnapshot(Base):
+    """One row every time a vendor's price for a product changes. Feeds price charts and 'price dropped' alerts."""
+
+    __tablename__ = "price_snapshots"
+    __table_args__ = (Index("ix_price_snapshots_vendor_product_time", "vendor_id", "product_id", "recorded_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    vendor_id: Mapped[int] = mapped_column(ForeignKey("vendors.id"))
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    price: Mapped[float]
+    in_stock: Mapped[bool] = mapped_column(default=True)
+    recorded_at: Mapped[datetime] = ts_column()
