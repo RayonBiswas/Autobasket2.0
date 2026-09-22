@@ -28,10 +28,12 @@ class Vendor(Base):
     """A seller: a kirana on our own marketplace, or an external platform (Blinkit, Zepto, ...)."""
 
     __tablename__ = "vendors"
+    __table_args__ = (UniqueConstraint("owner_user_id", name="uq_vendors_owner_user_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(120), index=True)
     kind: Mapped[str] = mapped_column(String(16), default=VendorKind.KIRANA)
+    # One shop per login: the kirana owner who manages this listing in the portal.
     owner_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     pincode: Mapped[str | None] = mapped_column(String(10))
     lat: Mapped[float | None]
@@ -43,6 +45,9 @@ class Vendor(Base):
     service_score: Mapped[float] = mapped_column(default=0.5)
     eta_minutes: Mapped[int | None]
     delivery_radius_km: Mapped[float | None]
+    opens_at: Mapped[str | None] = mapped_column(String(5))  # "HH:MM" local time
+    closes_at: Mapped[str | None] = mapped_column(String(5))
+    min_order_amount: Mapped[float] = mapped_column(default=0.0)
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = ts_column()
 
