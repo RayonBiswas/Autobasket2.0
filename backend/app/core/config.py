@@ -11,11 +11,23 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=str(REPO_ROOT / ".env"), env_file_encoding="utf-8", extra="ignore")
 
+    # development | production. Production refuses to start with unsafe settings (see validate_production).
+    app_env: str = "development"
+
     database_url: str = "sqlite:///./autobasket.db"
     jwt_secret: str = "dev-secret-change-me"
     jwt_expires_hours: int = 24
     auth_dev_mode: bool = True
     otp_ttl_minutes: int = 10
+    # Comma-separated browser origins allowed to call the API; "*" for local development.
+    cors_origins: str = "*"
+
+    # Sign-in emails. Any SMTP provider with STARTTLS on port 587.
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None
 
     # Where the web app lives; used in payment and Telegram links.
     web_url: str = "http://localhost:5173"
@@ -40,6 +52,18 @@ class Settings(BaseSettings):
     vision_model: str | None = None
 
     @property
+    def is_production(self) -> bool:
+        return self.app_env.strip().lower() == "production"
+
+    @property
+    def email_enabled(self) -> bool:
+        return bool(self.smtp_host)
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()] or ["*"]
+
+    @property
     def llm_enabled(self) -> bool:
         return bool(self.openai_api_key and self.openai_api_key != "your_openai_api_key_here")
 
@@ -50,6 +74,26 @@ class Settings(BaseSettings):
     @property
     def razorpay_enabled(self) -> bool:
         return bool(self.razorpay_key_id and self.razorpay_key_secret)
+
+
+DEFAULT_JWT_SECRET = "dev-secret-change-me"
+
+
+def validate_production(s: "Settings") -> None:
+    """Refuse to run a production deployment that would leak codes, use a guessable secret, or lose data."""
+    if not s.is_production:
+        return
+    problems: list[str] = []
+    if s.auth_dev_mode:
+        problems.append("AUTH_DEV_MODE must be 0 (dev mode shows sign-in codes in API responses)")
+    if s.jwt_secret == DEFAULT_JWT_SECRET or len(s.jwt_secret) < 32:
+        problems.append("JWT_SECRET must be a random string of at least 32 characters")
+    if s.database_url.startswith("sqlite"):
+        problems.append("DATABASE_URL must point at PostgreSQL, not SQLite")
+    if not s.email_enabled:
+        problems.append("SMTP_HOST (and SMTP_USER/SMTP_PASSWORD) must be set so people can receive sign-in codes")
+    if problems:
+        raise RuntimeError("Refusing to start in production:\n  - " + "\n  - ".join(problems))
 
 
 @lru_cache

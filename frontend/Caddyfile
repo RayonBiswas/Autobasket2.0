@@ -1,0 +1,28 @@
+# Public edge for AutoBasket.
+# SITE_ADDRESS=fridge.example.com  -> Caddy fetches and renews a TLS certificate automatically.
+# SITE_ADDRESS=:80                 -> plain HTTP, for a local test of the production stack.
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	# The API lives on the same origin under /api; the prefix is stripped before proxying.
+	handle_path /api/* {
+		reverse_proxy api:8000
+	}
+
+	# Edge liveness, separate from the API's /api/health.
+	respond /health "ok" 200
+
+	# The React app: real files first, everything else falls back to index.html (client-side routes).
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}

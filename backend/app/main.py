@@ -1,6 +1,9 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .core.config import get_settings, validate_production
 from .routes import (
     agent,
     auth,
@@ -20,12 +23,20 @@ from .routes import (
     vision,
 )
 
-app = FastAPI(title="AutoBasket API")
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    validate_production(get_settings())
+    yield
+
+
+app = FastAPI(title="AutoBasket API", lifespan=lifespan)
+
+_origins = get_settings().cors_origin_list
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_origins,
+    allow_credentials=_origins != ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -1,8 +1,9 @@
 import axios from "axios";
 
 // Set VITE_API_URL in frontend/.env.local for a non-local backend (see .env.example).
+// Production builds default to /api on the same origin, which Caddy proxies to the API container.
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://127.0.0.1:8000",
+  baseURL: import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "/api" : "http://127.0.0.1:8000"),
 });
 
 const TOKEN_KEY = "ab_token";

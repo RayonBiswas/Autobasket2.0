@@ -9,6 +9,7 @@ from .. import models
 from ..api.deps import current_household, current_user, get_db
 from ..core.config import get_settings
 from ..core.security import create_access_token, hash_otp
+from ..services.email import send_email
 
 router = APIRouter()
 
@@ -25,9 +26,17 @@ class OtpVerify(BaseModel):
     code: str
 
 
-def send_otp(email: str, code: str) -> None:
-    """Delivery hook. Dev mode logs it; Phase 6 wires email/SMS delivery here."""
-    print(f"[auth] OTP for {email}: {code}")
+def send_otp(email: str, code: str) -> bool:
+    """Dev mode prints the code; otherwise it goes out by email. Returns whether it was delivered."""
+    s = get_settings()
+    if s.auth_dev_mode:
+        print(f"[auth] OTP for {email}: {code}")
+        return True
+    return send_email(
+        email,
+        "Your AutoBasket sign-in code",
+        f"Your sign-in code is {code}. It works for {s.otp_ttl_minutes} minutes.\n\nIf you did not ask for this, ignore this email.",
+    )
 
 
 def _as_utc(dt: datetime) -> datetime:
@@ -49,6 +58,9 @@ def request_otp(body: OtpRequest, db: Session = Depends(get_db)):
     if recent >= OTP_MAX_PER_WINDOW:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many codes requested; try again later")
 
+    if not settings.auth_dev_mode and not settings.email_enabled:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Sign-in email is not configured on this server")
+
     code = f"{secrets.randbelow(10**6):06d}"
     db.add(
         models.OtpCode(
@@ -58,7 +70,8 @@ def request_otp(body: OtpRequest, db: Session = Depends(get_db)):
         )
     )
     db.commit()
-    send_otp(email, code)
+    if not send_otp(email, code):
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "We couldn't send the email. Try again in a minute")
 
     if settings.auth_dev_mode:
         return {"dev_code": code}
