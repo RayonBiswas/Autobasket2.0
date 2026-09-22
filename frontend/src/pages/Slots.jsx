@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import API from "../services/api";
+import { errorText, useToast } from "../lib/toast";
 
 const REFRESH_MS = 5000;
 
@@ -25,6 +26,7 @@ function pct(fraction) {
 }
 
 function SlotCard({ slot, products, onChange }) {
+  const notify = useToast();
   const [busy, setBusy] = useState(false);
   const p = pct(slot.remaining_fraction);
   const hasReading = slot.latest_weight_grams != null;
@@ -36,7 +38,7 @@ function SlotCard({ slot, products, onChange }) {
       await fn();
       await onChange();
     } catch (err) {
-      alert(err.response?.data?.detail || "That didn't work. Try again.");
+      notify(errorText(err, "That didn't work. Try again."), "error");
     } finally {
       setBusy(false);
     }
@@ -82,6 +84,7 @@ function SlotCard({ slot, products, onChange }) {
 }
 
 function Slots() {
+  const notify = useToast();
   const [trays, setTrays] = useState(null);
   const [products, setProducts] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -129,7 +132,7 @@ function Slots() {
       const res = await API.post("/devices", { name });
       setNewDevice({ name: res.data.name, token: res.data.token });
     } catch (err) {
-      alert(err.response?.data?.detail || "We couldn't add the fridge. Try again.");
+      notify(errorText(err, "We couldn't add the fridge. Try again."), "error");
     }
   };
 

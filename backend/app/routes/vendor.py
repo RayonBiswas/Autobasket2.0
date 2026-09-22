@@ -107,8 +107,10 @@ def create_shop(body: ShopIn, user: models.User = Depends(current_user), db: Ses
 
 
 @router.get("/shop")
-def get_shop(vendor: models.Vendor = Depends(current_vendor), db: Session = Depends(get_db)):
-    return shop_row(db, vendor)
+def get_shop(user: models.User = Depends(current_user), db: Session = Depends(get_db)):
+    """The caller's shop, or null when they have not opened one yet (a normal state, not an error)."""
+    vendor = db.query(models.Vendor).filter(models.Vendor.owner_user_id == user.id).first()
+    return shop_row(db, vendor) if vendor else None
 
 
 @router.put("/shop")

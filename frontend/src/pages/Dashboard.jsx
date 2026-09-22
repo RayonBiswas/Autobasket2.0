@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import API from "../services/api";
 import AgentChatPanel from "../components/AgentChatPanel";
+import { errorText, useToast } from "../lib/toast";
+import { cap, orderStage, runsOut } from "../lib/format";
 
 const REFRESH_MS = 10000;
 
@@ -11,18 +13,6 @@ const STATUS = {
   unknown: { label: "Not measured yet", pill: "pill-muted", gauge: "" },
 };
 
-// "runs out tomorrow", "runs out on Thursday", "runs out on 3 Oct"
-function runsOut(days) {
-  if (days == null || days >= 999) return null;
-  if (days < 1) return "runs out today";
-  if (days < 2) return "runs out tomorrow";
-  const d = new Date();
-  d.setDate(d.getDate() + Math.round(days));
-  if (days < 7) return `runs out on ${d.toLocaleDateString("en-IN", { weekday: "long" })}`;
-  return `runs out on ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`;
-}
-
-const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 // Where the "runs out" number comes from, so a young guess is not over-trusted.
 function provenance(r) {
@@ -35,7 +25,6 @@ function provenance(r) {
 const styles = `
   .lead-list { display: flex; flex-direction: column; gap: 6px; font-size: 1.25rem; line-height: 1.35; }
   .lead-list strong { font-weight: 600; }
-  .lead-calm { font-size: 1.25rem; }
   .shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
   .tile { display: flex; flex-direction: column; gap: 12px; cursor: pointer; text-align: left; transition: border-color 0.15s; }
   .tile:hover { border-color: var(--accent); }
@@ -51,17 +40,18 @@ const styles = `
   .offer-meta { color: var(--muted); font-size: 14px; }
   .offer-price { font-size: 1.25rem; font-weight: 600; white-space: nowrap; }
   .offer-why { font-size: 13px; color: var(--accent); }
+  .row-actions { display: inline-flex; gap: 6px; }
   @media (max-width: 560px) { .offer { grid-template-columns: 1fr; } }
 `;
 
 function Dashboard() {
+  const notify = useToast();
   const [inventory, setInventory] = useState(null);
   const [selected, setSelected] = useState(null);
   const [offers, setOffers] = useState([]);
   const [orders, setOrders] = useState([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
-  const [toast, setToast] = useState(null);
 
   const loadInventory = useCallback(async () => {
     try {
@@ -87,12 +77,6 @@ function Dashboard() {
     return () => clearInterval(id);
   }, [loadInventory, loadOrders]);
 
-  useEffect(() => {
-    if (!toast) return undefined;
-    const id = setTimeout(() => setToast(null), 4000);
-    return () => clearTimeout(id);
-  }, [toast]);
-
   const select = async (row) => {
     if (selected?.product_id === row.product_id) { setSelected(null); setOffers([]); return; }
     setSelected(row);
@@ -107,10 +91,20 @@ function Dashboard() {
   const order = async (offer) => {
     try {
       const res = await API.post("/orders", { vendor_id: offer.vendor_id, items: [{ product_id: selected.product_id, qty: 1 }] });
-      setToast(`Ordered ${selected.name} from ${offer.vendor_name} for ₹${res.data.total_amount}. Waiting for the shop to accept.`);
+      notify(`Ordered ${selected.name} from ${offer.vendor_name} for ₹${res.data.total_amount}. Say yes below to send it.`);
       loadOrders();
     } catch (err) {
-      alert(err.response?.data?.detail || "The order didn't go through. Try again.");
+      notify(errorText(err, "The order didn't go through. Try again."), "error");
+    }
+  };
+
+  const decide = async (o, action) => {
+    try {
+      await API.post(`/orders/${o.order_id}/${action}`);
+      notify(action === "confirm" ? `Sent to ${o.vendor_name}. They'll accept it shortly.` : "Order cancelled.");
+      loadOrders();
+    } catch (err) {
+      notify(errorText(err, "That didn't go through. Try again."), "error");
     }
   };
 
@@ -225,7 +219,7 @@ function Dashboard() {
           <div className="card" style={{ padding: "4px 8px" }}>
             <table className="table">
               <thead>
-                <tr><th>Items</th><th>Shop</th><th className="num">Total</th><th>Status</th></tr>
+                <tr><th>Items</th><th>Shop</th><th className="num">Total</th><th>Status</th><th></th></tr>
               </thead>
               <tbody>
                 {orders.map((o) => (
@@ -233,7 +227,15 @@ function Dashboard() {
                     <td>{o.items.map((i) => `${cap(i.name)} ×${i.qty}`).join(", ")}</td>
                     <td>{o.vendor_name}</td>
                     <td className="num">₹{o.total_amount}</td>
-                    <td><span className="pill pill-muted">{o.status.replace("_", " ")}</span></td>
+                    <td><span className={`pill ${orderStage(o.status).pill}`}>{orderStage(o.status).label}</span></td>
+                    <td className="num">
+                      {(o.status === "proposed" || o.status === "pending_confirmation") && (
+                        <span className="row-actions">
+                          <button className="btn btn-primary btn-sm" onClick={() => decide(o, "confirm")}>Yes, order it</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => decide(o, "cancel")}>No</button>
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -243,8 +245,6 @@ function Dashboard() {
       )}
 
       <AgentChatPanel />
-
-      {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   );
 }

@@ -114,6 +114,21 @@ python -m app.worker        # recomputes every 15 minutes
 To demo learning without waiting a week, let the simulator post two weeks of history first:
 `python edge/simulator.py --backfill-days 14`.
 
+## Kirana shop portal
+
+Local shops sell through the same app. A shopkeeper signs in with the same email code, opens **I run a shop**
+(`/shop`), and fills in the shop's name, pincode, hours, delivery time and radius. Then:
+
+- **Products**: type a price next to anything in the catalog and it is live for nearby homes immediately.
+  Untick "In stock" to hide it without deleting the price. A CSV price list (`product,price,in_stock`) can be
+  uploaded in one go; unknown product names are reported back, not silently dropped.
+- **Orders**: a household's "Yes" lands here. The shop taps Accept, then Delivered (or "Can't do it").
+  Order statuses move `proposed → confirmed → accepted → delivered → verified`; the API refuses illegal jumps.
+
+The shop-side API lives under `/vendor/*` (`/vendor/shop`, `/vendor/catalog`, `/vendor/offers`,
+`/vendor/offers/csv`, `/vendor/orders/{id}/accept|reject|deliver`) and is scoped to the shop owned by the caller.
+The portal uses a turmeric accent so a shopkeeper always knows which side of the app they are on.
+
 ## Fridge devices and the simulator
 
 Each fridge has a **device** (a Raspberry Pi) that authenticates with its own token and posts load-cell readings:

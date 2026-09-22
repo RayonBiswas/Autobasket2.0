@@ -1,8 +1,15 @@
 import { useEffect, useState } from "react";
+import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { ToastProvider } from "./components/Toast";
+import { Icon } from "./lib/icons";
 import Dashboard from "./pages/Dashboard";
 import Detection from "./pages/Detection";
 import Login from "./pages/Login";
 import Slots from "./pages/Slots";
+import ShopLayout from "./pages/shop/ShopLayout";
+import ShopOrders from "./pages/shop/ShopOrders";
+import ShopProducts from "./pages/shop/ShopProducts";
+import ShopSettings from "./pages/shop/ShopSettings";
 import { clearToken, getToken } from "./services/auth";
 
 const THEME_KEY = "ab_theme";
@@ -15,42 +22,84 @@ function readTheme() {
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-const Icon = {
-  fridge: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="5" y="2.5" width="14" height="19" rx="2" /><path d="M5 10h14M9 6v1.5M9 13.5v2.5" />
-    </svg>
-  ),
-  shelves: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 10h18M3 15h18" />
-    </svg>
-  ),
-  camera: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" />
-    </svg>
-  ),
-  sun: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-      <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-    </svg>
-  ),
-  moon: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z" />
-    </svg>
-  ),
-};
 
-const pages = [
-  { id: "dashboard", label: "Your fridge", icon: Icon.fridge },
-  { id: "slots", label: "Shelves", icon: Icon.shelves },
-  { id: "detection", label: "Camera", icon: Icon.camera },
+const HOME_NAV = [
+  { to: "/", label: "Your fridge", icon: Icon.fridge, end: true },
+  { to: "/shelves", label: "Shelves", icon: Icon.shelves },
+  { to: "/camera", label: "Camera", icon: Icon.camera },
 ];
 
+const SHOP_NAV = [
+  { to: "/shop", label: "Orders", icon: Icon.inbox, end: true },
+  { to: "/shop/products", label: "Products", icon: Icon.tag },
+  { to: "/shop/settings", label: "Shop details", icon: Icon.gear },
+];
+
+function Shell({ theme, onToggleTheme, onSignOut }) {
+  const { pathname } = useLocation();
+  const shopSide = pathname.startsWith("/shop");
+  const links = shopSide ? SHOP_NAV : HOME_NAV;
+
+  const nav = links.map((l) => (
+    <NavLink key={l.to} to={l.to} end={l.end} className="rail-link">
+      {l.icon}
+      <span>{l.label}</span>
+    </NavLink>
+  ));
+
+  return (
+    <div className="shell" data-side={shopSide ? "shop" : "home"}>
+      <aside className="rail">
+        <div className="rail-brand">
+          <div className="rail-mark">{shopSide ? "S" : "A"}</div>
+          <div>
+            <strong>{shopSide ? "Shop portal" : "AutoBasket"}</strong>
+            <span>{shopSide ? "Orders from nearby homes" : "Knows what's in your fridge"}</span>
+          </div>
+        </div>
+        <nav className="rail-nav" aria-label="Main">
+          {nav}
+          <div className="rail-gap" />
+          <NavLink to={shopSide ? "/" : "/shop"} className="rail-link rail-switch">
+            {shopSide ? Icon.back : Icon.shop}
+            <span>{shopSide ? "Back to my fridge" : "I run a shop"}</span>
+          </NavLink>
+        </nav>
+        <div className="rail-foot">
+          <button className="rail-link" onClick={onToggleTheme}>
+            {theme === "dark" ? Icon.sun : Icon.moon}
+            <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={onSignOut}>Sign out</button>
+        </div>
+      </aside>
+
+      <main className="main">
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/shelves" element={<Slots />} />
+          <Route path="/camera" element={<Detection />} />
+          <Route path="/shop" element={<ShopLayout />}>
+            <Route index element={<ShopOrders />} />
+            <Route path="products" element={<ShopProducts />} />
+            <Route path="settings" element={<ShopSettings />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
+
+      <nav className="bottom-nav" aria-label="Main">
+        {nav}
+        <NavLink to={shopSide ? "/" : "/shop"} className="rail-link">
+          {shopSide ? Icon.fridge : Icon.shop}
+          <span>{shopSide ? "My fridge" : "My shop"}</span>
+        </NavLink>
+      </nav>
+    </div>
+  );
+}
+
 function App() {
-  const [page, setPage] = useState("dashboard");
   const [token, setToken] = useState(getToken());
   const [theme, setTheme] = useState(readTheme);
 
@@ -70,52 +119,16 @@ function App() {
     clearToken();
     setToken(null);
   };
-
   const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
 
-  if (!token) return <Login onLogin={setToken} theme={theme} onToggleTheme={toggleTheme} />;
-
-  const nav = (extraClass = "") =>
-    pages.map((p) => (
-      <button
-        key={p.id}
-        className={`rail-link ${extraClass}`}
-        aria-current={page === p.id ? "page" : undefined}
-        onClick={() => setPage(p.id)}
-      >
-        {p.icon}
-        {p.label}
-      </button>
-    ));
-
   return (
-    <div className="shell">
-      <aside className="rail">
-        <div className="rail-brand">
-          <div className="rail-mark">A</div>
-          <div>
-            <strong>AutoBasket</strong>
-            <span>Knows what's in your fridge</span>
-          </div>
-        </div>
-        <nav className="rail-nav" aria-label="Main">{nav()}</nav>
-        <div className="rail-foot">
-          <button className="rail-link" onClick={toggleTheme}>
-            {theme === "dark" ? Icon.sun : Icon.moon}
-            {theme === "dark" ? "Light mode" : "Dark mode"}
-          </button>
-          <button className="btn btn-ghost btn-sm" onClick={signOut}>Sign out</button>
-        </div>
-      </aside>
-
-      <main className="main">
-        {page === "dashboard" && <Dashboard />}
-        {page === "slots" && <Slots />}
-        {page === "detection" && <Detection />}
-      </main>
-
-      <nav className="bottom-nav" aria-label="Main">{nav()}</nav>
-    </div>
+    <ToastProvider>
+      <BrowserRouter>
+        {token
+          ? <Shell theme={theme} onToggleTheme={toggleTheme} onSignOut={signOut} />
+          : <Login onLogin={setToken} theme={theme} onToggleTheme={toggleTheme} />}
+      </BrowserRouter>
+    </ToastProvider>
   );
 }
 

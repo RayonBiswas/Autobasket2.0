@@ -23,7 +23,8 @@ def _product_id(client, h, name):
 def test_shop_profile_lifecycle(app_client, login):
     client, _ = app_client
     v = _auth(client, login, "sharma@x.y")
-    assert client.get("/vendor/shop", headers=v).status_code == 404
+    r = client.get("/vendor/shop", headers=v)
+    assert r.status_code == 200 and r.json() is None
 
     r = client.post("/vendor/shop", json=SHOP, headers=v)
     assert r.status_code == 201, r.text
