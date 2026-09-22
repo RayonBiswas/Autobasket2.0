@@ -106,7 +106,8 @@ def rank_offers(
                 "service_score": vendor.service_score if vendor.service_score is not None else 0.5,
                 "price": offer.price,
                 "in_stock": offer.in_stock,
-                "stale": is_stale(offer) if offer.fetched_at is not None else False,
+                # Only delivery-app prices go stale: a kirana's portal price stands until the shop changes it.
+                "stale": vendor.kind == models.VendorKind.PLATFORM and offer.fetched_at is not None and is_stale(offer),
                 "eta_minutes": offer.eta_minutes if offer.eta_minutes is not None else vendor.eta_minutes,
                 "distance_km": distance,
             }

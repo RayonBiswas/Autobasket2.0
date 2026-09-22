@@ -114,6 +114,30 @@ python -m app.worker        # recomputes every 15 minutes
 To demo learning without waiting a week, let the simulator post two weeks of history first:
 `python edge/simulator.py --backfill-days 14`.
 
+## How the top 3 are chosen
+
+`GET /recommendations/milk` returns the three best places to buy milk for the signed-in household. The order is
+computed, never guessed: each seller gets a score from five parts, all between 0 and 1.
+
+| Part | How it is scored |
+|---|---|
+| Price | 1 for the cheapest offer, 0 for the dearest |
+| Delivery time | Absolute decay: 10 min ≈ 0.6, 30 min ≈ 0.2, 2 hours ≈ 0 |
+| Distance | 1 next door, 0 at 10 km or more (0.5 when either side has no GPS) |
+| Rating | Stars out of 5 |
+| Reliability | The shop's service score (updated by post-delivery ratings) |
+
+The weights come from the household's **priority**, set on the Settings page: *balanced* (price 35 %, time 20 %,
+distance/rating/reliability 15 % each), *price* (price 60 %) or *speed* (time 45 %). A kirana outside its own
+delivery radius is dropped. Each result carries a one-line reason ("Cheapest, about 25 min"), produced from the
+same numbers; the chat agent may reword it but cannot reorder it.
+
+Prices come through `services/scout/`. Kirana prices are whatever the shop set in the portal. Blinkit, Zepto and
+Instamart are real adapters with an empty fetch hook, because none of them offers a price API and scraping their
+apps breaks constantly and violates their terms; plug in a feed and the rest works unchanged. Until then their
+last known price is used and marked "price from earlier today" after 30 minutes. Every price change from any
+source is kept in `price_snapshots`.
+
 ## Kirana shop portal
 
 Local shops sell through the same app. A shopkeeper signs in with the same email code, opens **I run a shop**

@@ -6,6 +6,8 @@ import { cap, orderStage, runsOut } from "../lib/format";
 
 const REFRESH_MS = 10000;
 
+const PRIORITY_LABEL = { balanced: "Balanced pick", price: "Cheapest first", speed: "Fastest first" };
+
 const STATUS = {
   safe: { label: "Plenty", pill: "pill-ok", gauge: "" },
   warning: { label: "Getting low", pill: "pill-warn", gauge: "gauge-warn" },
@@ -33,13 +35,19 @@ const styles = `
   .tile-head h3 { font-size: 1.05rem; }
   .tile-qty { font-size: 14px; color: var(--muted); }
   .tile-when { font-size: 14px; }
-  .offers { display: flex; flex-direction: column; gap: 10px; }
-  .offer { display: grid; grid-template-columns: 1fr auto auto; gap: 16px; align-items: center; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-control); }
-  .offer.best { border-color: var(--accent); background: var(--accent-soft); }
-  .offer-name { font-weight: 600; }
-  .offer-meta { color: var(--muted); font-size: 14px; }
-  .offer-price { font-size: 1.25rem; font-weight: 600; white-space: nowrap; }
-  .offer-why { font-size: 13px; color: var(--accent); }
+  .picks { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 12px; align-items: stretch; }
+  .pick { display: flex; flex-direction: column; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: var(--r-tile); background: var(--surface); }
+  .pick.best { border-color: var(--accent); background: var(--accent-soft); }
+  .pick-tag { font-size: 13px; color: var(--accent); font-weight: 500; }
+  .pick-name { font-size: 1.15rem; font-weight: 600; }
+  .pick.best .pick-name { font-size: 1.4rem; }
+  .pick-price { font-size: 1.6rem; font-weight: 600; letter-spacing: -0.01em; }
+  .pick.best .pick-price { font-size: 2rem; }
+  .pick-meta { font-size: 14px; color: var(--muted); }
+  .pick-why { font-size: 15px; }
+  .pick .btn { margin-top: auto; }
+  .pick-stale { font-size: 13px; color: var(--warn); }
+  @media (max-width: 720px) { .picks { grid-template-columns: 1fr; } }
   .row-actions { display: inline-flex; gap: 6px; }
   @media (max-width: 560px) { .offer { grid-template-columns: 1fr; } }
 `;
@@ -48,7 +56,7 @@ function Dashboard() {
   const notify = useToast();
   const [inventory, setInventory] = useState(null);
   const [selected, setSelected] = useState(null);
-  const [offers, setOffers] = useState([]);
+  const [picks, setPicks] = useState(null);
   const [orders, setOrders] = useState([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -78,13 +86,15 @@ function Dashboard() {
   }, [loadInventory, loadOrders]);
 
   const select = async (row) => {
-    if (selected?.product_id === row.product_id) { setSelected(null); setOffers([]); return; }
+    if (selected?.product_id === row.product_id) { setSelected(null); setPicks(null); return; }
     setSelected(row);
+    setPicks(null);
     try {
-      const res = await API.get(`/vendors/compare/${row.name}`);
-      setOffers(res.data.slice(0, 3));
-    } catch {
-      setOffers([]);
+      const res = await API.get(`/recommendations/${row.name}`);
+      setPicks(res.data);
+    } catch (err) {
+      setPicks({ offers: [], considered: 0 });
+      notify(errorText(err, "We couldn't fetch prices just now."), "error");
     }
   };
 
@@ -186,28 +196,33 @@ function Dashboard() {
         <section className="sheet">
           <div className="section-title">
             <h2>Where to buy {selected.name}</h2>
-            <span>Best value first</span>
+            <span>{picks ? PRIORITY_LABEL[picks.priority] || "" : "Checking prices…"}</span>
           </div>
-          {offers.length === 0 && <p className="muted">No shop near you sells this yet.</p>}
-          <div className="offers">
-            {offers.map((o, i) => (
-              <div key={o.vendor_id} className={`offer${i === 0 ? " best" : ""}`}>
-                <div>
-                  <div className="offer-name">{o.vendor_name}</div>
-                  <div className="offer-meta">
+          {picks && picks.offers.length === 0 && <p className="muted">No shop near you sells this yet.</p>}
+          {picks && picks.offers.length > 0 && (
+            <div className="picks">
+              {picks.offers.map((o, i) => (
+                <article key={o.vendor_id} className={`pick${i === 0 ? " best" : ""}`}>
+                  {i === 0 && <div className="pick-tag">Best for you</div>}
+                  <div className="pick-name">{o.vendor_name}</div>
+                  <div className="pick-price">₹{o.price}</div>
+                  <div className="pick-why">{o.reason}</div>
+                  <div className="pick-meta">
                     {o.vendor_kind === "kirana" ? "Local shop" : "Delivery app"}
-                    {o.eta_minutes != null && `, about ${o.eta_minutes} min`}
+                    {o.distance_km != null && `, ${o.distance_km} km away`}
                     {`, rated ${o.rating} out of 5`}
                   </div>
-                  {i === 0 && <div className="offer-why">Cheapest and well rated</div>}
-                </div>
-                <div className="offer-price">₹{o.price}</div>
-                <button className={`btn ${i === 0 ? "btn-primary" : ""}`} onClick={() => order(o)}>
-                  Order from {o.vendor_name.split(" ")[0]}
-                </button>
-              </div>
-            ))}
-          </div>
+                  {o.stale && <div className="pick-stale">Price from earlier today</div>}
+                  <button className={`btn ${i === 0 ? "btn-primary" : ""}`} onClick={() => order(o)}>
+                    Order from {o.vendor_name}
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+          {picks && picks.considered > picks.offers.length && (
+            <p className="small muted" style={{ marginTop: 12 }}>Picked from {picks.considered} sellers. Change what matters most in Settings.</p>
+          )}
         </section>
       )}
 
