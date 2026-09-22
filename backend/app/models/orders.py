@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..database import Base
@@ -22,6 +22,11 @@ class Order(Base):
     channel: Mapped[str] = mapped_column(String(16), default=OrderChannel.KIRANA)
     total_amount: Mapped[float] = mapped_column(default=0.0)
     payment_ref: Mapped[str | None] = mapped_column(String(120))
+    payment_url: Mapped[str | None] = mapped_column(String(500))
+    handoff_url: Mapped[str | None] = mapped_column(String(500))
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rating: Mapped[int | None]
     created_at: Mapped[datetime] = ts_column()
     updated_at: Mapped[datetime] = ts_column(onupdate=utcnow)
 

@@ -15,6 +15,7 @@ from .enums import (
     VendorKind,
 )
 from .inventory import InventoryEvent, InventoryState
+from .notify import Notification
 from .orders import Order, OrderItem
 
 __all__ = [
@@ -22,7 +23,7 @@ __all__ = [
     "Device", "Tray", "Slot", "SlotReading",
     "Product", "Vendor", "VendorOffer", "PriceSnapshot",
     "InventoryEvent", "InventoryState",
-    "Order", "OrderItem",
+    "Order", "OrderItem", "Notification",
     "UserRole", "MemberRole", "ProductUnit", "EventSource", "StockStatus",
     "VendorKind", "OfferSource", "OrderStatus", "OrderChannel",
 ]
