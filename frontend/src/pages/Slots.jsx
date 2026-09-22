@@ -90,6 +90,8 @@ function Slots() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
   const [newDevice, setNewDevice] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [deviceName, setDeviceName] = useState("Kitchen fridge");
 
   const load = useCallback(async () => {
     try {
@@ -125,12 +127,15 @@ function Slots() {
     }
   };
 
-  const addDevice = async () => {
-    const name = window.prompt("What should we call this fridge?", "Kitchen fridge");
+  const addDevice = async (e) => {
+    e.preventDefault();
+    const name = deviceName.trim();
     if (!name) return;
     try {
       const res = await API.post("/devices", { name });
       setNewDevice({ name: res.data.name, token: res.data.token });
+      setAdding(false);
+      await load();
     } catch (err) {
       notify(errorText(err, "We couldn't add the fridge. Try again."), "error");
     }
@@ -145,9 +150,20 @@ function Slots() {
           <p>Each slot is a scale. Tell it what sits there, then tap "This is empty" and "This is full" once to teach it.</p>
         </div>
         <div className="head-actions">
-          <button className="btn" onClick={addDevice}>Add a fridge</button>
+          <button className="btn" onClick={() => setAdding((v) => !v)} aria-expanded={adding}>Add a fridge</button>
         </div>
       </div>
+
+      {adding && (
+        <form className="card" onSubmit={addDevice} style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
+          <div className="field" style={{ flex: 1, minWidth: 200 }}>
+            <label htmlFor="device-name">What should we call this fridge?</label>
+            <input id="device-name" className="input" autoFocus value={deviceName} onChange={(e) => setDeviceName(e.target.value)} />
+          </div>
+          <button className="btn btn-primary">Create device key</button>
+          <button type="button" className="btn btn-ghost" onClick={() => setAdding(false)}>Cancel</button>
+        </form>
+      )}
 
       {newDevice && (
         <div className="card empty">

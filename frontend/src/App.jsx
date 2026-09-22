@@ -98,10 +98,12 @@ function Shell({ theme, onToggleTheme, onSignOut }) {
 
       <nav className="bottom-nav" aria-label="Main">
         {nav}
-        <NavLink to={shopSide ? "/" : "/shop"} className="rail-link">
-          {shopSide ? Icon.fridge : Icon.shop}
-          <span>{shopSide ? "My fridge" : "My shop"}</span>
-        </NavLink>
+        {shopSide && (
+          <NavLink to="/" className="rail-link">
+            {Icon.fridge}
+            <span>My fridge</span>
+          </NavLink>
+        )}
       </nav>
     </div>
   );

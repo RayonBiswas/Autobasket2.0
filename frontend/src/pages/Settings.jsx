@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import API from "../services/api";
 import { errorText, useToast } from "../lib/toast";
 import TelegramCard from "../components/TelegramCard";
+import { Link } from "react-router-dom";
 
 const PRIORITIES = [
   { id: "balanced", title: "Balanced", blurb: "A fair mix of price, speed and how reliable the shop has been." },
@@ -98,6 +99,14 @@ function Settings() {
       </section>
 
       <TelegramCard />
+
+      <section>
+        <div className="section-title"><h2>Do you run a shop?</h2></div>
+        <div className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <p className="muted">List your prices and homes nearby can order from you in one tap. Same sign-in, separate portal.</p>
+          <div><Link className="btn" to="/shop">Open the shop portal</Link></div>
+        </div>
+      </section>
 
       <section>
         <div className="section-title"><h2>Who lives at home</h2><span>Used as the starting guess for how fast things run out</span></div>

@@ -5,6 +5,10 @@ const styles = `
   .login { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
   .login-card { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 20px; }
   .login-card h1 { font-size: 1.75rem; }
+  .login-brand { display: flex; align-items: center; gap: 10px; }
+  .login-brand .rail-mark { width: 40px; height: 40px; font-size: 17px; }
+  .login-brand strong { font-size: 18px; }
+  .login-brand span { display: block; font-size: 13px; color: var(--muted); }
   .login-card .lead { color: var(--muted); margin-top: 6px; }
   .login-code { font-size: 1.5rem; letter-spacing: 0.25em; }
   .login-error { color: var(--danger); font-size: 14px; }
@@ -54,11 +58,15 @@ function Login({ onLogin, theme, onToggleTheme }) {
         {theme === "dark" ? "Light mode" : "Dark mode"}
       </button>
       <div className="login">
-        <form className="login-card card" onSubmit={step === "email" ? sendCode : submitCode}>
+        <form className="login-card sheet" onSubmit={step === "email" ? sendCode : submitCode}>
+          <div className="login-brand">
+            <div className="rail-mark">A</div>
+            <div><strong>AutoBasket</strong><span>Knows what's in your fridge</span></div>
+          </div>
           <div>
-            <h1>Welcome to AutoBasket</h1>
+            <h1>{step === "email" ? "Sign in" : "Check your email"}</h1>
             <p className="lead">
-              {step === "email" ? "Enter your email and we'll send a sign-in code." : `We sent a 6-digit code to ${email}.`}
+              {step === "email" ? "No password. We email you a 6-digit code each time." : `We sent a 6-digit code to ${email}.`}
             </p>
           </div>
 

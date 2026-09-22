@@ -54,7 +54,7 @@ function AgentChatPanel() {
       <style>{styles}</style>
       <div className="section-title" style={{ marginBottom: 0 }}>
         <h2>Ask your fridge</h2>
-        <span>Orders over ₹50 always ask you first</span>
+        <span className="hide-sm">Orders over ₹50 always ask you first</span>
       </div>
       <div className="chat-log">
         {messages.map((msg, index) => (

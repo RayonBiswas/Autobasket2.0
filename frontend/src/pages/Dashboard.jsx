@@ -13,7 +13,7 @@ const PRIORITY_LABEL = { balanced: "Balanced pick", price: "Cheapest first", spe
 const STATUS = {
   safe: { label: "Plenty", pill: "pill-ok", gauge: "" },
   warning: { label: "Getting low", pill: "pill-warn", gauge: "gauge-warn" },
-  critical: { label: "Almost out", pill: "pill-danger", gauge: "gauge-danger" },
+  critical: { label: "Order soon", pill: "pill-danger", gauge: "gauge-danger" },
   unknown: { label: "Not measured yet", pill: "pill-muted", gauge: "" },
 };
 
@@ -142,7 +142,7 @@ function Dashboard() {
 
       <div className="page-head">
         <h1>Your fridge</h1>
-        {inventory === null && <p>Checking the shelves…</p>}
+        {inventory === null && <p className="lead-calm muted">Checking the shelves…</p>}
         {inventory && inventory.length > 0 && (
           low.length === 0
             ? <p className="lead-calm">Everything is stocked. Nothing to buy right now.</p>
@@ -156,6 +156,20 @@ function Dashboard() {
             )
         )}
       </div>
+
+      {inventory === null && (
+        <section aria-hidden="true">
+          <div className="shelf">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="card tile">
+                <div className="skeleton" style={{ width: "40%", height: 18 }} />
+                <div className="skeleton" style={{ height: 88 }} />
+                <div className="skeleton" style={{ width: "60%", height: 14 }} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {inventory && inventory.length === 0 && (
         <div className="card empty">
