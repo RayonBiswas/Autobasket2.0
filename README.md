@@ -14,8 +14,8 @@ The platform combines a FastAPI backend, a React/Vite frontend, and a conversati
 
 ## Tech stack
 
-- Backend: FastAPI, SQLAlchemy, Pydantic, LangGraph-style agent orchestration
-- Frontend: React, Vite, Axios
+- Backend: FastAPI, SQLAlchemy 2 + Alembic, Pydantic, APScheduler worker, LangGraph-style agent orchestration
+- Frontend: React 19, React Router, Vite, Axios; installable PWA
 - Data: SQLite by default for local development
 - AI: Ollama or OpenAI-compatible chat endpoints with a heuristic fallback
 
@@ -24,6 +24,18 @@ The platform combines a FastAPI backend, a React/Vite frontend, and a conversati
 - backend/app: FastAPI application, database models, routes, and agent logic
 - backend/tests: smoke and guardrail tests for the agent workflow
 - frontend/src: React pages and UI components
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Your fridge with the top-3 picks](docs/screenshots/phase-5-top3.png) | ![Needs your yes](docs/screenshots/phase-6-proposal.png) |
+| ![Orders with the delivery timeline](docs/screenshots/phase-6-orders.png) | ![Camera naming each slot](docs/screenshots/phase-7-camera.png) |
+| ![Shop portal, product prices](docs/screenshots/phase-4-shop-products.png) | ![Phone layout](docs/screenshots/mobile-fridge.png) |
+
+The app has two sides in one build: the household app (leaf green) and the kirana shop portal at `/shop`
+(turmeric), so a shopkeeper always knows which side they are on. Both work on a phone; the household app installs
+as a PWA.
 
 ## Quick start
 
