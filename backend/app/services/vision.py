@@ -5,9 +5,9 @@ The model only identifies items. Quantity always comes from the load cells. Not 
 
 import base64
 import hashlib
-import time
 import json
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
