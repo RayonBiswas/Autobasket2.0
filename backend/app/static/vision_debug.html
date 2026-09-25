@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fridge camera</title>
+<style>
+  :root { --bg:#f6f8f4; --ink:#1d2a1f; --muted:#5f6f63; --leaf:#2f8f4e; --sky:#2b6fd6; --warn:#b5541b; --card:#fff; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#131a15; --ink:#e8efe9; --muted:#9db3a3; --card:#1b241d; } }
+  body { margin:0; font:15px/1.4 system-ui, sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; flex-wrap:wrap; gap:12px 20px; align-items:center; padding:12px 16px; background:var(--card); }
+  header b { font-size:17px; }
+  header .meta { color:var(--muted); font-size:13px; }
+  main { padding:16px; display:grid; gap:16px; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .stage { position:relative; background:#000; border-radius:8px; overflow:hidden; aspect-ratio: 4 / 3; }
+  .stage img, .stage canvas { position:absolute; inset:0; width:100%; height:100%; }
+  .stage img { object-fit:contain; }
+  .panel { background:var(--card); border-radius:8px; padding:14px; }
+  .meta { color:var(--muted); font-size:13px; }
+  button { font:inherit; padding:8px 14px; border-radius:6px; border:1px solid var(--leaf); background:var(--leaf); color:#fff; cursor:pointer; }
+  button.secondary { background:transparent; color:var(--ink); border-color:var(--muted); }
+  button:disabled { opacity:.5; cursor:default; }
+  label { margin-right:12px; white-space:nowrap; }
+  table { width:100%; border-collapse:collapse; margin-top:8px; }
+  td, th { text-align:left; padding:6px 4px; border-bottom:1px solid rgba(128,128,128,.25); }
+  .kind-match { color:var(--leaf); } .kind-mismatch { color:var(--warn); } .kind-unknown, .kind-suggestion, .kind-unsure { color:var(--muted); }
+  #banner { display:none; padding:8px 12px; border-radius:6px; background:#fbe9e0; color:#7a2e00; margin-bottom:10px; }
+  #banner.show { display:block; }
+</style>
+</head>
+<body>
+<header>
+  <b>Fridge camera</b>
+  <span class="meta" id="provider">provider: –</span>
+  <span class="meta" id="timing">model: –</span>
+  <span class="meta" id="board">board: –</span>
+  <span class="meta" id="calls">model calls this page: 0</span>
+</header>
+<main>
+  <div>
+    <div id="banner"></div>
+    <div class="stage"><img id="photo" alt="latest shelf photo"><canvas id="overlay"></canvas></div>
+  </div>
+  <div class="panel">
+    <div>
+      <button id="snap">Snap now</button>
+      <button class="secondary" id="auto" data-every="0">Auto: off</button>
+    </div>
+    <div style="margin-top:10px">
+      <label><input type="checkbox" id="layerDet" checked> detector boxes</label>
+      <label><input type="checkbox" id="layerModel" checked> model verdicts</label>
+      <label><input type="checkbox" id="layerGrams" checked> grams</label>
+    </div>
+    <div style="margin-top:6px" class="meta" id="detStatus">detector: loading…</div>
+    <table id="slots"><thead><tr><th>slot</th><th>model says</th><th>conf.</th><th>kind</th><th>grams</th></tr></thead><tbody></tbody></table>
+    <p class="meta" id="photoAt">no photo yet</p>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<script>
+// ---- detector plug-ins: each is { name, load(), detect(img) -> [{label, score, box:[x,y,w,h] in image pixels}] } ----
+window.detectors = {
+  cocossd: {
+    name: "COCO-SSD (browser)",
+    model: null,
+    async load() { this.model = await cocoSsd.load(); },
+    async detect(img) {
+      const preds = await this.model.detect(img);
+      return preds.map(p => ({ label: p.class, score: p.score, box: p.bbox }));
+    },
+  },
+};
+const detector = window.detectors.cocossd;
+
+const $ = id => document.getElementById(id);
+const img = $("photo"), canvas = $("overlay"), ctx = canvas.getContext("2d");
+let latest = null, grams = {}, detections = [], calls = 0, autoTimer = null;
+
+function banner(msg) { const b = $("banner"); b.textContent = msg || ""; b.classList.toggle("show", !!msg); }
+
+// Map image pixels to the drawn (object-fit: contain) rectangle inside the stage.
+function fitRect() {
+  const W = canvas.width, H = canvas.height, iw = img.naturalWidth || 4, ih = img.naturalHeight || 3;
+  const s = Math.min(W / iw, H / ih), w = iw * s, h = ih * s;
+  return { x: (W - w) / 2, y: (H - h) / 2, w, h, s };
+}
+
+function draw() {
+  const stage = canvas.parentElement;
+  canvas.width = stage.clientWidth; canvas.height = stage.clientHeight;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!latest) return;
+  const r = fitRect();
+  ctx.lineWidth = 2; ctx.font = "14px system-ui";
+
+  if ($("layerModel").checked) {
+    const n = latest.slots.length || 1, bw = r.w / n;
+    latest.slots.forEach((s, i) => {
+      const x = r.x + i * bw;
+      ctx.strokeStyle = "rgba(43,111,214,.6)"; ctx.setLineDash([6, 4]); ctx.strokeRect(x, r.y, bw, r.h); ctx.setLineDash([]);
+      const text = `${s.slot}: ${s.item ?? "–"}` + (s.confidence != null ? ` ${Math.round(s.confidence * 100)}%` : "");
+      ctx.fillStyle = "rgba(43,111,214,.85)"; ctx.fillRect(x + 4, r.y + 4, ctx.measureText(text).width + 10, 20);
+      ctx.fillStyle = "#fff"; ctx.fillText(text, x + 9, r.y + 19);
+      if (s.box) {
+        const [bx, by, bwid, bh] = s.box;
+        ctx.strokeStyle = "#2b6fd6"; ctx.strokeRect(r.x + bx * r.w, r.y + by * r.h, bwid * r.w, bh * r.h);
+      }
+    });
+  }
+  if ($("layerDet").checked) {
+    detections.forEach(d => {
+      const [x, y, w, h] = d.box;
+      const X = r.x + x * r.s, Y = r.y + y * r.s, Wd = w * r.s, Hd = h * r.s;
+      ctx.strokeStyle = "#2f8f4e"; ctx.strokeRect(X, Y, Wd, Hd);
+      const text = `${d.label} ${Math.round(d.score * 100)}%`;
+      ctx.fillStyle = "rgba(47,143,78,.9)"; ctx.fillRect(X, Y + Hd - 20, ctx.measureText(text).width + 10, 20);
+      ctx.fillStyle = "#fff"; ctx.fillText(text, X + 5, Y + Hd - 5);
+    });
+  }
+  if ($("layerGrams").checked) {
+    const n = latest.slots.length || 1, bw = r.w / n;
+    latest.slots.forEach((s, i) => {
+      const g = grams[s.slot];
+      if (g == null) return;
+      const text = `${Math.round(g)} g`;
+      ctx.fillStyle = "rgba(0,0,0,.65)"; ctx.fillRect(r.x + i * bw + 4, r.y + r.h - 26, ctx.measureText(text).width + 10, 22);
+      ctx.fillStyle = "#fff"; ctx.fillText(text, r.x + i * bw + 9, r.y + r.h - 10);
+    });
+  }
+}
+
+function renderTable() {
+  const tb = $("slots").querySelector("tbody"); tb.innerHTML = "";
+  (latest?.slots || []).forEach(s => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${s.slot}</td><td>${s.item ?? "–"}${s.matched_name ? ` → ${s.matched_name}` : ""}</td>` +
+      `<td>${s.confidence != null ? Math.round(s.confidence * 100) + "%" : "–"}</td>` +
+      `<td class="kind-${s.kind ?? "unknown"}">${s.kind ?? "–"}</td><td>${grams[s.slot] != null ? Math.round(grams[s.slot]) + " g" : "–"}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+async function refreshGrams() {
+  try {
+    const w = await (await fetch("/vision/debug/weights")).json();
+    grams = Object.fromEntries((w.slots || []).map(s => [s.slot, s.grams]));
+  } catch { grams = {}; }
+}
+
+async function refreshBoard() {
+  try {
+    const r = await fetch("/vision/debug/board");
+    const b = await r.json();
+    $("board").textContent = r.ok ? `board: ${b.ip} · wifi ${b.wifi} · up ${Math.round(b.uptime_s / 60)} min` : `board: ${b.detail}`;
+  } catch { $("board").textContent = "board: –"; }
+}
+
+async function poll() {
+  try {
+    const r = await fetch("/vision/debug/latest.json", { cache: "no-store" });
+    if (r.status === 404) { $("photoAt").textContent = "no photo yet – press Snap now"; return; }
+    const data = await r.json();
+    if (!latest || data.at !== latest.at) {
+      latest = data;
+      $("provider").textContent = `provider: ${data.provider} · ${data.model}`;
+      $("timing").textContent = `model: ${data.elapsed_ms} ms`;
+      $("photoAt").textContent = `photo at ${new Date(data.at).toLocaleTimeString()} · tray ${data.tray_position} · ${data.device_name ?? ""}`;
+      await new Promise(res => { img.onload = res; img.src = `/vision/debug/latest.jpg?t=${encodeURIComponent(data.at)}`; });
+      detections = [];
+      if (detector.model) { try { detections = await detector.detect(img); } catch (e) { console.warn(e); } }
+      await refreshGrams();
+      renderTable(); draw();
+    }
+  } catch (e) { console.warn(e); }
+}
+
+async function snap() {
+  $("snap").disabled = true; banner("");
+  try {
+    const r = await fetch("/vision/debug/snap", { method: "POST" });
+    const b = await r.json();
+    if (!r.ok) banner(b.detail || "snap failed"); else { calls++; $("calls").textContent = `model calls this page: ${calls}`; }
+  } catch (e) { banner(String(e)); }
+  setTimeout(() => { $("snap").disabled = false; }, 4000);
+}
+
+$("snap").onclick = snap;
+$("auto").onclick = () => {
+  const steps = [0, 5, 10, 30];
+  const cur = Number($("auto").dataset.every), next = steps[(steps.indexOf(cur) + 1) % steps.length];
+  $("auto").dataset.every = next; $("auto").textContent = next ? `Auto: every ${next} s` : "Auto: off";
+  clearInterval(autoTimer); if (next) autoTimer = setInterval(snap, next * 1000);
+};
+["layerDet", "layerModel", "layerGrams"].forEach(id => $(id).onchange = draw);
+window.addEventListener("resize", draw);
+
+(async () => {
+  try { await detector.load(); $("detStatus").textContent = `detector: ${detector.name} ready`; if (latest) { detections = await detector.detect(img); draw(); } }
+  catch (e) { $("detStatus").textContent = "detector: failed to load (offline?)"; }
+})();
+poll(); setInterval(poll, 2000); refreshBoard(); setInterval(refreshBoard, 15000);
+</script>
+</body>
+</html>

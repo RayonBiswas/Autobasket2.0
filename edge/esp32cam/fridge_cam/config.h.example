@@ -13,12 +13,21 @@
 // Which shelf this camera and scale node serve (1 = first shelf as created in the app).
 #define TRAY_POSITION    1
 
-// Post weights this often even when the door stays shut (seconds).
+// Post weights this often even when nothing changes (seconds).
 #define READINGS_EVERY_S 300
 
-// Wait this long after the door closes before weighing and photographing (milliseconds).
+// A slot whose weight jumps by at least this much (grams) counts as "something was taken or put back".
+#define WEIGHT_CHANGE_G  30
+
+// After such a jump, wait this long with no further jumps before weighing and photographing (milliseconds).
 #define SETTLE_MS        3000
+
+// Also post a photo once after boot and then this often (seconds). 0 = only after weight changes.
+#define PHOTO_EVERY_S    1800
 
 // 1 = accept any HTTPS certificate (the ESP32 has no root-CA store by default). Fine at home; for a public
 // server, set to 0 and add the server's root CA with secure.setCACert() in fridge_cam.ino.
 #define TLS_INSECURE     1
+
+// Password for over-the-air firmware updates from the laptop (any long random string). Empty = OTA off.
+#define OTA_PASS         "change-me-before-flashing"

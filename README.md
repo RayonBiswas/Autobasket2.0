@@ -133,12 +133,32 @@ Weights say *how much* is left; the camera says *what* it is. A photo of one she
 with the catalog names and a strict "JSON, one entry per slot" prompt. Each answer is matched to the catalog and
 stored in `vision_results` (only a hash of the photo is kept). The Shelves and Camera pages then show, per slot:
 
+#### Choosing a vision provider
+
+`.env.example` carries four ready blocks — NVIDIA NIM (demo), Google Gemini and Groq (free tiers for practice) and
+OpenRouter. Uncomment exactly one, restart the API. All four use the same prompt and code, so practice results
+predict demo results. Check any block with one photo:
+
+```powershell
+cd backend
+..\.venv\Scripts\python.exe scriptsision_smoke.py path	o\shelf.jpg 4 "milk,eggs,butter,paneer"
+```
+
+#### Watching the camera live (developer page)
+
+Set `VISION_DEBUG_DIR=some/folder` in `.env` (ignored in production), restart the API, and open
+`http://localhost:8000/vision/debug` — in Antigravity / VS Code use *Simple Browser: Show*. The page shows the latest
+photo with free in-browser detector boxes (COCO-SSD), the model's verdict per slot, live grams, and a **Snap now**
+button that asks the board for a fresh photo. Photos land only in that folder, never in the database.
+
+![Live camera viewer](docs/screenshots/vision-debug.png)
+
 - **Camera and scale agree**: the model saw what you assigned.
 - **Not assigned yet**: an empty slot with a recognised item, one tap assigns it.
 - **Different from what's assigned**: someone put curd where milk was; one tap fixes the assignment.
 
 Upload from a phone with `POST /vision/trays/{tray_id}/photo`, or from the fridge device with
-`POST /vision/device/trays/{position}/photo` (Phase 8 sends one per shelf on every door close). Without a key the
+`POST /vision/device/trays/{position}/photo` (Phase 8 sends one per shelf whenever a weight changes, and every 30 min). Without a key the
 endpoint answers 503 with the variables to set; it never guesses. `docs/screenshots/phase-7-sample-shelf.jpg` is a
 labelled test image the model reads correctly; a real fridge photo is the intended input.
 

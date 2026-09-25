@@ -3,6 +3,7 @@
 
   Reads every slot once a second and prints one line per slot on the USB serial port (9600 baud):
       W,<slot>,<grams>       a weight, slot is 1-based
+      R,<slot>,<raw>         raw count, printed instead of W until that slot is calibrated
       E,<slot>               that HX711 did not answer (unplugged, or still powering up)
 
   Calibration (type in the Arduino IDE serial monitor, "Newline" line ending):
@@ -15,6 +16,7 @@
   No library needed: the HX711 is bit-banged below (24-bit, channel A, gain 128).
 
   Wiring per HX711:  VCC -> 5V, GND -> GND, DT -> DT_PIN[i], SCK -> SCK_PIN[i].
+  You can wire just one HX711 (slot 1, pins 2 and 3); unplugged slots print E and cost nothing.
   The ESP32-CAM listens on this same serial line (see edge/README.md for the divider).
 */
 
@@ -74,6 +76,7 @@ bool hxReadMedian(uint8_t i, long &out) {
   for (uint8_t k = 0; k < SAMPLES; k++) {
     long v;
     if (hxReadRaw(i, v)) s[n++] = v;
+    else if (k == 0) return false;   // nothing answered on the first try: slot is unplugged, do not wait 4 more times
   }
   if (n < 3) return false;
   for (uint8_t a = 1; a < n; a++) {          // insertion sort, n <= 5
@@ -162,7 +165,7 @@ void pollSerial() {
 void setup() {
   Serial.begin(9600);
   for (uint8_t i = 0; i < N_SLOTS; i++) {
-    pinMode(DT_PIN[i], INPUT);
+    pinMode(DT_PIN[i], INPUT_PULLUP);   // an unplugged slot reads HIGH (= "not ready") instead of floating
     pinMode(SCK_PIN[i], OUTPUT);
     digitalWrite(SCK_PIN[i], LOW);
   }
@@ -181,6 +184,11 @@ void loop() {
     long raw;
     if (!hxReadMedian(i, raw)) {
       Serial.print(F("E,")); Serial.println(i + 1);
+      continue;
+    }
+    if (cal[i].scale == 0) {
+      // Not calibrated yet: stream the raw count so wiring can be checked live. Calibrate with T then C.
+      Serial.print(F("R,")); Serial.print(i + 1); Serial.print(','); Serial.println(raw);
       continue;
     }
     Serial.print(F("W,")); Serial.print(i + 1); Serial.print(','); Serial.println(grams(i, raw), 1);

@@ -15,8 +15,7 @@ Prices: India retail, Sept 2026. Confirm on the page before paying.
 | ☐ | 6 | Raspberry Pi Camera Module 3 **Wide** | 1 | ~3,650 incl. GST | https://www.electropi.in/raspberry-pi-camera-module-3-wide | 120° lens sees a whole tray |
 | ☐ | 7 | **Pi 5 camera cable, 22-pin → 15-pin, 50 cm or 1 m** | 1 | 200–400 | search "Raspberry Pi 5 camera cable 500mm" on robu.in | ⚠ The cable in the camera box does NOT fit a Pi 5 |
 | ☐ | 8 | 5 kg load cell + HX711 amplifier kit | 8 | 250–400 | https://robu.in/product/5-kg-load-cell-with-hx711ad-module-shell-and-4p-dupont-wire-kit/ | One per slot; buy 8 (or 10 for spares) |
-| ☐ | 9 | Magnetic reed switch (door sensor, wired, normally-open) | 1 | ~50 | robu.in / Amazon | Tells the Pi when the door closes |
-| ☐ | 10 | 5 V USB white LED strip, 30 cm | 1 | ~300 | Amazon | Fridge light turns off when the door closes; we need light for photos |
+| ☐ | 10 | 5 V USB white LED strip, 30 cm | 1 | ~300 | Amazon | The fridge is dark inside; we need light for photos |
 | ☐ | 11 | Female-female + male-female jumper wires (40 pcs each) | 1 set | ~150 | any | |
 | ☐ | 12 | Perfboard 7×9 cm + 40-pin female header ×2 | 1 | ~200 | any | To fan out 8 HX711 boards neatly |
 | ☐ | 13 | 3 mm acrylic sheet, 8 pieces cut 10 × 10 cm, + M3 × 20 mm standoffs (16) | 1 set | ~500 | local laser-cut shop or Amazon | Slot platforms sit on the load cells |
@@ -32,7 +31,7 @@ Prices: India retail, Sept 2026. Confirm on the page before paying.
 
 ## Design notes carried from the spec (§3.3, §7)
 
-- The Pi sits **outside** the fridge; only load cells, camera, LED strip and door switch go inside.
+- The Pi sits **outside** the fridge; only load cells, camera and LED strip go inside.
 - Flat cables run through the door gasket. Test the seal with a paper strip after install.
-- Pi 5 GPIO budget: 8 HX711 × 2 pins + door switch + LED = 18 of 26 usable pins.
+- Pi 5 GPIO budget: 8 HX711 × 2 pins + LED = 17 of 26 usable pins.
 - Coat the HX711 boards with conformal spray or nail varnish against condensation.

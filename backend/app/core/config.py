@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     ollama_model: str = "llama3.1:8b"
     # Vision model (optional): an image-capable model on the same endpoint; falls back to openai_model.
     vision_model: str | None = None
+    # Dev-only: when set (and not production) the API keeps the latest analysed photo here and serves /vision/debug.
+    vision_debug_dir: str | None = None
 
     @property
     def is_production(self) -> bool:
@@ -66,6 +68,10 @@ class Settings(BaseSettings):
     @property
     def llm_enabled(self) -> bool:
         return bool(self.openai_api_key and self.openai_api_key != "your_openai_api_key_here")
+
+    @property
+    def vision_debug_enabled(self) -> bool:
+        return bool(self.vision_debug_dir) and not self.is_production
 
     @property
     def telegram_enabled(self) -> bool:

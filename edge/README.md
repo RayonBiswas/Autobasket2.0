@@ -3,11 +3,11 @@
 | Folder / file | What it is |
 |---|---|
 | `arduino/scale_node/` | Arduino sketch. Reads up to 4 HX711 load-cell amplifiers, keeps calibration in EEPROM, prints grams once a second. |
-| `esp32cam/fridge_cam/` | ESP32-CAM sketch. Takes those grams over a serial link, watches the door switch, posts weights and a shelf photo to the API. |
+| `esp32cam/fridge_cam/` | ESP32-CAM sketch. Takes those grams over a serial link, posts weights to the API, and a shelf photo whenever a weight changes (and every 30 min). |
 | `simulator.py` | A fake fridge for your laptop. Drains slot weights over time and posts readings. Use it to demo the whole loop without hardware. |
 
 Two boards because the ESP32-CAM has almost no free pins once the camera is wired, while the HX711s need two
-pins each and like 5 V. The Arduino does the weighing; the ESP32-CAM does Wi-Fi, the camera and the door.
+pins each and like 5 V. The Arduino does the weighing; the ESP32-CAM does Wi-Fi and the camera. There is no door switch: a weight change is the trigger.
 
 ```
  load cells ──► HX711 ×4 ──► Arduino ──serial──► ESP32-CAM ──Wi-Fi──► API (/devices/me/readings, /vision/device/...)
@@ -17,7 +17,7 @@ pins each and like 5 V. The Arduino does the weighing; the ESP32-CAM does Wi-Fi,
 
 - Arduino Uno or Nano (5 V), one HX711 amplifier board per slot, one load cell (5 kg bar type is fine) per slot.
 - ESP32-CAM (AI-Thinker) with its OV2640 camera, plus a USB-to-serial adapter (FTDI/CH340, 3.3 V logic) to flash it.
-- A magnetic reed switch for the door, two resistors (1 kΩ and 2 kΩ) for the serial divider, a 5 V 2 A supply.
+- Two resistors (1 kΩ and 2 kΩ) for the serial divider, a 5 V 2 A supply.
 
 ## Wiring
 
@@ -43,11 +43,10 @@ Load cell to HX711: red → E+, black → E−, white → A−, green → A+ (sw
 Because the Arduino's D0/D1 are also its USB serial pins, unplug the ESP32 link (or just GPIO 15 → D0) while
 uploading a sketch to the Arduino.
 
-**Door and power:**
+**Power and light:**
 
 | What | Where |
 |---|---|
-| Reed switch | ESP32 GPIO 13 ↔ GND (magnet on the door; switch closed = door closed) |
 | Flash LED | built in on GPIO 4, used during the photo |
 | Power | 5 V into the ESP32-CAM's 5V pin (it draws up to ~300 mA with Wi-Fi + flash; do not power it from the Arduino's 3.3 V pin) |
 
@@ -63,6 +62,35 @@ GPIO 14/15 are the SD-card pins, so the SD slot is unavailable; the firmware doe
    tie **IO0 to GND**, press reset, upload, then remove the IO0 jumper and press reset again.
 4. Open the serial monitor at 115200 for the ESP32-CAM. You should see `[wifi] connected`, `[cam] ready`, then
    `[status] ... slots=4` once the Arduino is talking.
+
+With an **ESP32-CAM-MB** (the USB base board) there are no adapter wires and no IO0 jumper: dock the camera, plug in
+USB, upload. The MB hides the GPIO pins, so the final install needs the camera off the MB and on a breadboard or
+perfboard, powered by 5 V, with GPIO 14/15/GND going to the Arduino. That is why the firmware updates itself over
+Wi-Fi: flash once over USB, then never dock it again.
+
+### PlatformIO instead of the Arduino IDE
+
+Each sketch folder has a `platformio.ini`, so "Open Project" in PlatformIO on either folder gives Build, Upload and
+Serial Monitor buttons. `edge/arduino/scale_node` has environments for Nano (new and old bootloader) and Uno.
+
+### Updating the camera over Wi-Fi (OTA)
+
+The camera firmware listens for password-protected updates as `fridge-cam-<TRAY_POSITION>.local`. It needs the
+two-slot flash layout, which `platformio.ini` sets (`min_spiffs.csv`); in the Arduino IDE choose Partition Scheme
+"Minimal SPIFFS" for the first USB flash or OTA has nowhere to write.
+
+1. Set `OTA_PASS` in `config.h` to a long random string before the USB flash. An empty value disables OTA.
+2. Copy `ota_local.ini.example` to `ota_local.ini` (gitignored) and put the same password and the board's IP
+   (printed at boot as `[wifi] connected, ip ...`) in it.
+3. From `edge/esp32cam/fridge_cam`: `pio run -e esp32cam_ota -t upload`. The board logs `[ota] update starting`,
+   reboots, and comes back on the new firmware. Wi-Fi name, API URL and any code change all go this way.
+
+If Wi-Fi stays down for 30 minutes the board restarts itself once; that is the only self-reboot it does.
+
+### Snap now
+
+While on Wi-Fi the camera answers `http://<board-ip>/snap` (take and post a photo right away) and
+`http://<board-ip>/` (status JSON). The API's developer page at `/vision/debug` uses these; you can also curl them.
 
 Compile check from the terminal (optional): install arduino-cli with `winget install ArduinoSA.CLI`, then
 

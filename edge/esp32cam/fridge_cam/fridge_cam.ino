@@ -4,10 +4,17 @@
   What it does
     - Listens to the Arduino scale node on a second UART (GPIO 14 = RX, GPIO 15 = TX) for "W,<slot>,<grams>".
     - Posts the latest weights to the API every READINGS_EVERY_S seconds.
-    - Watches the door reed switch on GPIO 13 (closed door = switch closed = LOW). When the door closes it
-      waits SETTLE_MS for the shelves to stop moving, posts the weights, then photographs the shelf with the
-      flash LED on and posts the JPEG to /vision/device/trays/<TRAY_POSITION>/photo.
+    - When any slot's weight jumps by WEIGHT_CHANGE_G or more (something was taken or put back) it waits
+      SETTLE_MS for the shelf to stop moving, posts the weights, then photographs the shelf with the flash LED
+      on and posts the JPEG to /vision/device/trays/<TRAY_POSITION>/photo.
+    - Also posts a photo once after boot and then every PHOTO_EVERY_S seconds, so the camera can be tested
+      before any scale is wired. No door switch is needed.
     - Never reboot-loops: no Wi-Fi or no API means keep the latest readings and retry with backoff.
+      (One exception: if Wi-Fi has been down for 30 minutes straight it restarts once, in case the radio wedged.)
+    - Accepts over-the-air firmware updates on the local network (ArduinoOTA, hostname fridge-cam-<TRAY_POSITION>,
+      password OTA_PASS), so the board never has to come off the shelf to be reflashed. Needs a two-slot
+      flash layout: platformio.ini sets it; in the Arduino IDE pick Partition Scheme "Minimal SPIFFS".
+    - Answers GET /snap on port 80 (take a photo now, for the developer page) and GET / (status JSON).
 
   Copy config.h.example to config.h and fill it in. Status lines go to the USB serial monitor at 115200.
 */
@@ -15,8 +22,14 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
+#include <ArduinoOTA.h>
+#include <WebServer.h>
 #include "esp_camera.h"
 #include "config.h"
+
+#ifndef OTA_PASS
+#define OTA_PASS ""   // empty = OTA disabled
+#endif
 
 // ---- AI-Thinker ESP32-CAM pin map ----
 #define PWDN_GPIO_NUM     32
@@ -37,12 +50,10 @@
 #define PCLK_GPIO_NUM     22
 
 const int FLASH_PIN = 4;
-const int DOOR_PIN = 13;
 const int SCALE_RX_PIN = 14;
 const int SCALE_TX_PIN = 15;
 const int MAX_SLOTS = 8;
 
-const unsigned long DEBOUNCE_MS = 50;
 const unsigned long BACKOFF_MIN_MS = 5000;
 const unsigned long BACKOFF_MAX_MS = 300000;
 const unsigned long STATUS_EVERY_MS = 30000;
@@ -57,11 +68,10 @@ unsigned long nextTryAt = 0;
 unsigned long lastStatus = 0;
 bool cameraOk = false;
 
-int doorStable = HIGH;
-int doorLastRaw = HIGH;
-unsigned long doorChangedAt = 0;
-bool doorEventPending = false;
-unsigned long doorClosedAt = 0;
+float prevGrams[MAX_SLOTS];
+bool changePending = false;          // a slot moved; photograph once it settles
+unsigned long changedAt = 0;
+unsigned long lastPhotoPost = 0;     // 0 = never, so the first photo goes right after boot
 
 String scaleLine;
 
@@ -87,6 +97,65 @@ void connectWifi() {
   while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) delay(250);
   if (WiFi.status() == WL_CONNECTED) logf("[wifi] connected, ip %s", WiFi.localIP().toString().c_str());
   else logf("[wifi] not connected yet; will keep trying");
+}
+
+// ---- Over-the-air updates ----
+// Upload from the laptop with: pio run -e esp32cam_ota -t upload   (see platformio.ini / ota_local.ini)
+bool otaStarted = false;
+bool otaInProgress = false;
+
+void setupOta() {
+  if (otaStarted || WiFi.status() != WL_CONNECTED || strlen(OTA_PASS) == 0) return;
+  static char host[24];
+  snprintf(host, sizeof(host), "fridge-cam-%d", TRAY_POSITION);
+  ArduinoOTA.setHostname(host);
+  ArduinoOTA.setPassword(OTA_PASS);
+  ArduinoOTA.onStart([]() { otaInProgress = true; logf("[ota] update starting"); });
+  ArduinoOTA.onEnd([]() { logf("[ota] update done, rebooting"); });
+  ArduinoOTA.onError([](ota_error_t e) { otaInProgress = false; logf("[ota] error %u", (unsigned)e); });
+  ArduinoOTA.begin();
+  otaStarted = true;
+  logf("[ota] ready as %s.local", host);
+}
+
+// Restart once if Wi-Fi has been down for this long; a plain reconnect loop can wedge on some routers.
+const unsigned long WIFI_DOWN_RESTART_MS = 30UL * 60UL * 1000UL;
+unsigned long wifiDownSince = 0;
+
+void watchWifi(unsigned long now) {
+  if (WiFi.status() == WL_CONNECTED) { wifiDownSince = 0; return; }
+  if (wifiDownSince == 0) wifiDownSince = now ? now : 1;
+  else if (now - wifiDownSince >= WIFI_DOWN_RESTART_MS) {
+    logf("[wifi] down for 30 min, restarting");
+    delay(100);
+    ESP.restart();
+  }
+}
+
+// ---- "Snap now" listener: the dev page asks the board for a photo. LAN only, no password: it can only
+// trigger the same authenticated post the board makes on its own. ----
+WebServer snapServer(80);
+bool snapStarted = false;
+bool snapRequested = false;
+
+void setupSnap() {
+  if (snapStarted || WiFi.status() != WL_CONNECTED) return;
+  snapServer.on("/snap", []() {
+    snapRequested = true;
+    snapServer.send(200, "application/json", "{\"ok\":true}");
+    logf("[snap] requested by %s", snapServer.client().remoteIP().toString().c_str());
+  });
+  snapServer.on("/", []() {
+    char body[160];
+    unsigned long now = millis();
+    snprintf(body, sizeof(body), "{\"tray\":%d,\"ip\":\"%s\",\"wifi\":\"%s\",\"uptime_s\":%lu,\"last_photo_s_ago\":%ld}",
+             TRAY_POSITION, WiFi.localIP().toString().c_str(), WiFi.status() == WL_CONNECTED ? "up" : "down",
+             now / 1000UL, lastPhotoPost ? (long)((now - lastPhotoPost) / 1000UL) : -1L);
+    snapServer.send(200, "application/json", body);
+  });
+  snapServer.begin();
+  snapStarted = true;
+  logf("[snap] listening on http://%s/snap", WiFi.localIP().toString().c_str());
 }
 
 void noteFailure() {
@@ -137,6 +206,12 @@ void handleScaleLine(const String &line) {
     int slot = line.substring(c1 + 1, c2).toInt();
     float g = line.substring(c2 + 1).toFloat();
     if (slot >= 1 && slot <= MAX_SLOTS) {
+      if (slotFresh[slot - 1] && fabs(g - prevGrams[slot - 1]) >= WEIGHT_CHANGE_G) {
+        changePending = true;         // keeps resetting while the weight is still moving
+        changedAt = millis();
+        logf("[scale] slot %d moved %.0f g; settling for %lu ms", slot, g - prevGrams[slot - 1], (unsigned long)SETTLE_MS);
+      }
+      prevGrams[slot - 1] = g;
       slotGrams[slot - 1] = g;
       slotFresh[slot - 1] = true;
       slotSeenAt[slot - 1] = millis();
@@ -227,23 +302,6 @@ bool initCamera() {
   return true;
 }
 
-// ---------- door ----------
-
-void pollDoor() {
-  int raw = digitalRead(DOOR_PIN);
-  if (raw != doorLastRaw) { doorLastRaw = raw; doorChangedAt = millis(); }
-  if (millis() - doorChangedAt < DEBOUNCE_MS || raw == doorStable) return;
-  doorStable = raw;
-  if (doorStable == LOW) {          // closed
-    doorClosedAt = millis();
-    doorEventPending = true;
-    logf("[door] closed; settling for %lu ms", (unsigned long)SETTLE_MS);
-  } else {
-    logf("[door] opened");
-    doorEventPending = false;
-  }
-}
-
 // ---------- main ----------
 
 void setup() {
@@ -252,34 +310,42 @@ void setup() {
   logf("[boot] AutoBasket fridge camera, tray %d", TRAY_POSITION);
   pinMode(FLASH_PIN, OUTPUT);
   digitalWrite(FLASH_PIN, LOW);
-  pinMode(DOOR_PIN, INPUT_PULLUP);
-  doorStable = doorLastRaw = digitalRead(DOOR_PIN);
   Serial1.begin(9600, SERIAL_8N1, SCALE_RX_PIN, SCALE_TX_PIN);
   cameraOk = initCamera();
   connectWifi();
+  setupOta();
 }
 
 void loop() {
+  ArduinoOTA.handle();
+  if (otaInProgress) { delay(1); return; }
+
   pollScale();
-  pollDoor();
   unsigned long now = millis();
 
   if (WiFi.status() != WL_CONNECTED && (now % 10000) < 20) connectWifi();
+  watchWifi(now);
+  setupOta();
+  setupSnap();
+  if (snapStarted) snapServer.handleClient();
 
   if (now - lastStatus >= STATUS_EVERY_MS) {
     lastStatus = now;
     int fresh = 0;
     for (int i = 0; i < MAX_SLOTS; i++) if (slotFresh[i] && now - slotSeenAt[i] <= 30000) fresh++;
-    logf("[status] wifi=%s slots=%d door=%s heap=%u", WiFi.status() == WL_CONNECTED ? "up" : "down", fresh,
-         doorStable == LOW ? "closed" : "open", (unsigned)ESP.getFreeHeap());
+    logf("[status] wifi=%s slots=%d heap=%u", WiFi.status() == WL_CONNECTED ? "up" : "down", fresh,
+         (unsigned)ESP.getFreeHeap());
   }
 
   bool canTry = nextTryAt == 0 || (long)(now - nextTryAt) >= 0;
 
-  if (doorEventPending && now - doorClosedAt >= SETTLE_MS && canTry) {
-    doorEventPending = false;
+  bool settled = changePending && now - changedAt >= SETTLE_MS;
+  bool photoDue = PHOTO_EVERY_S > 0 && (lastPhotoPost == 0 || now - lastPhotoPost >= (unsigned long)PHOTO_EVERY_S * 1000UL);
+  if ((settled || photoDue || snapRequested) && (canTry || snapRequested)) {
+    changePending = false;
+    snapRequested = false;
     bool ok = postReadings() && postPhoto();
-    if (ok) { noteSuccess(); lastReadingsPost = now; } else noteFailure();
+    if (ok) { noteSuccess(); lastReadingsPost = now; lastPhotoPost = now; } else noteFailure();
   }
 
   if (canTry && now - lastReadingsPost >= (unsigned long)READINGS_EVERY_S * 1000UL) {

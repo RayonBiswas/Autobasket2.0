@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -21,12 +22,16 @@ from .routes import (
     vendor,
     vendors,
     vision,
+    vision_debug,
 )
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     validate_production(get_settings())
+    s = get_settings()
+    if s.vision_debug_dir and s.is_production:
+        logging.getLogger("autobasket").warning("VISION_DEBUG_DIR is set but ignored in production")
     yield
 
 
@@ -57,6 +62,7 @@ app.include_router(orders.router, prefix="/orders", tags=["Orders"])
 app.include_router(agent.router, prefix="/agent", tags=["Agent"])
 app.include_router(seed.router, prefix="/seed", tags=["Seed"])
 app.include_router(vision.router, prefix="/vision", tags=["Vision"])
+app.include_router(vision_debug.router, prefix="/vision/debug", tags=["Vision debug"])
 
 
 @app.get("/")

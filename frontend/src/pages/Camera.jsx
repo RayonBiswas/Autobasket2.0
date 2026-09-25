@@ -135,7 +135,7 @@ function Camera() {
       {trays && trays.map((t) => <ShelfCard key={t.tray_id} tray={t} onAnalyzed={async () => reload()} onUse={onUse} />)}
 
       <p className="small muted">
-        Once the fridge camera is installed it sends a photo of each shelf every time the door closes, so you rarely need to do this by hand.
+        Once the fridge camera is installed it sends a photo of each shelf whenever something is taken or put back, so you rarely need to do this by hand.
         Needs an image-capable model: set OPENAI_API_KEY (and VISION_MODEL) on the server.
       </p>
     </div>

@@ -23,3 +23,8 @@ build/
 .claude/settings.local.json
 # Playwright MCP session artefacts
 .playwright-mcp/
+
+# PlatformIO build output
+.pio/
+# PlatformIO IntelliSense export
+compile_commands.json

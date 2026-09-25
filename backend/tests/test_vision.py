@@ -104,3 +104,77 @@ def test_photo_endpoints(app_client, login, monkeypatch):
     r = client.post("/vision/device/trays/1/photo", files={"image": ("s.jpg", io.BytesIO(JPEG), "image/jpeg")}, headers=dev)
     assert r.status_code == 200 and r.json()["position"] == 1
     assert client.post("/vision/device/trays/9/photo", files={"image": ("s.jpg", io.BytesIO(JPEG), "image/jpeg")}, headers=dev).status_code == 404
+
+
+def test_openai_caller_caps_output(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    get_settings.cache_clear()
+    sent: dict = {}
+
+    class FakeResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"choices": [{"message": {"content": "{}"}}]}
+
+    def fake_post(url, json, headers, timeout):
+        sent.update(json)
+        return FakeResponse()
+
+    monkeypatch.setattr(vision.httpx, "post", fake_post)
+    assert vision._openai_caller("prompt", JPEG, "image/jpeg") == "{}"
+    assert sent["max_tokens"] == 400
+    assert sent["messages"][0]["content"][1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+
+
+def test_parse_box_accepts_fractions_and_clamps():
+    assert vision._parse_box([0.1, 0.2, 0.3, 0.4]) == (0.1, 0.2, 0.3, 0.4)
+    assert vision._parse_box([0.9, 0.9, 0.5, 0.5]) == (0.9, 0.9, 0.1, 0.1)  # clamped to the image edge
+
+
+def test_parse_box_rejects_bad_shapes():
+    for bad in (None, "x", [1, 2], ["a", "b", "c", "d"], [0.1, 0.2, 0, 0.4], [1.5, 0.2, 0.3, 0.4], [0.1, 0.2, 0.3, -0.1]):
+        assert vision._parse_box(bad) is None, bad
+
+
+def test_identify_keeps_optional_box():
+    answer = json.dumps({"slots": [
+        {"slot": 1, "item": "milk", "confidence": 0.9, "box": [0.05, 0.1, 0.2, 0.6]},
+        {"slot": 2, "item": "unknown", "confidence": 0.1},
+        {"slot": 3, "item": "eggs", "confidence": 0.8, "box": "nonsense"},
+    ]})
+    got = identify(JPEG, "image/jpeg", 4, ["milk"], caller=lambda p, i, m: answer)
+    assert got[0].box == (0.05, 0.1, 0.2, 0.6)
+    assert got[1].box is None
+    assert got[2].item == "eggs" and got[2].box is None
+
+
+def test_prompt_asks_for_boxes_and_stays_strict_in_production(monkeypatch):
+    monkeypatch.setenv("VISION_DEBUG_DIR", "")
+    get_settings.cache_clear()
+    p = vision.build_prompt(4, ["milk"])
+    assert '"box"' in p and "0 to 1" in p
+    assert "even if the scene does not look like a fridge" not in p
+
+
+def test_prompt_tolerates_test_scenes_only_with_debug_viewer(monkeypatch, tmp_path):
+    monkeypatch.setenv("VISION_DEBUG_DIR", str(tmp_path))
+    get_settings.cache_clear()
+    assert "even if the scene does not look like a fridge" in vision.build_prompt(4, ["milk"])
+
+
+def test_analyze_tray_detail_reports_guesses_and_timing(app_client, login):
+    client, session_factory = app_client
+    h = _auth(client, login, "detail@x.y")
+    client.post("/seed/dev", headers=h)
+    with session_factory() as db:
+        tray = db.query(models.Tray).first()
+        result = vision.analyze_tray_detail(db, tray, JPEG, "image/jpeg", caller=lambda p, i, m: FAKE_ANSWER)
+        assert result is not None
+        assert [g.slot for g in result.guesses] == [1, 2, 3]
+        assert result.elapsed_ms >= 0
+        assert len(result.blocks) == len(tray.slots)
+        assert vision.analyze_tray_detail(db, tray, JPEG, "image/jpeg", caller=lambda p, i, m: "not json") is None
