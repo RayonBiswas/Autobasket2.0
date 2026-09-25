@@ -106,3 +106,82 @@ def test_debug_files_untouched_when_analysis_fails(app_client, login, monkeypatc
 
     assert _device_photo(client, seeded["device_token"]).status_code == 502
     assert vision_debug.read_latest() is None
+
+
+# ---- debug routes ----
+
+import httpx  # noqa: E402
+
+
+def test_debug_routes_404_when_disabled(app_client, monkeypatch):
+    client, _ = app_client
+    monkeypatch.delenv("VISION_DEBUG_DIR", raising=False)
+    get_settings.cache_clear()
+    for path in ("/vision/debug", "/vision/debug/latest.json", "/vision/debug/latest.jpg", "/vision/debug/weights"):
+        assert client.get(path).status_code == 404, path
+    assert client.post("/vision/debug/snap").status_code == 404
+
+
+def test_debug_page_and_latest(app_client, login, monkeypatch, tmp_path):
+    client, _ = app_client
+    h = _auth(client, login, "page@x.y")
+    seeded = client.post("/seed/dev", headers=h).json()
+    _enable(monkeypatch, tmp_path)
+    page = client.get("/vision/debug")
+    assert page.status_code == 200 and "Snap now" in page.text
+    assert client.get("/vision/debug/latest.json").status_code == 404
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    get_settings.cache_clear()
+    monkeypatch.setattr(vision, "identify", lambda *a, **k: [SlotGuess(1, "curd", 0.9)])
+    assert _device_photo(client, seeded["device_token"]).status_code == 200
+    assert client.get("/vision/debug/latest.json").json()["slots"][0]["item"] == "curd"
+    jpg = client.get("/vision/debug/latest.jpg")
+    assert jpg.status_code == 200 and jpg.content == JPEG and jpg.headers["cache-control"] == "no-store"
+
+    client.post(
+        "/devices/me/readings",
+        json={"readings": [{"tray": 1, "slot": 1, "weight_grams": 123.0}]},
+        headers={"Authorization": f"Bearer {seeded['device_token']}"},
+    )
+    w = client.get("/vision/debug/weights").json()
+    assert w["slots"][0]["slot"] == 1 and w["slots"][0]["grams"] == 123.0
+
+
+def test_snap_without_board_ip_is_502(app_client, monkeypatch, tmp_path):
+    client, _ = app_client
+    _enable(monkeypatch, tmp_path)
+    vision_debug.write_latest(JPEG, {"device_id": 999, "tray_id": 1, "slots": []})
+    r = client.post("/vision/debug/snap")
+    assert r.status_code == 502 and "board not reachable" in r.json()["detail"]
+
+
+def test_snap_relays_to_board(app_client, monkeypatch, tmp_path):
+    client, _ = app_client
+    _enable(monkeypatch, tmp_path)
+    vision_debug.write_latest(JPEG, {"device_id": 42, "device_ip": "10.0.0.5", "tray_id": 1, "slots": []})
+    vision_debug.remember_device_ip(42, "10.0.0.5")
+    calls = []
+
+    class FakeResp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"ok": True}
+
+    def fake_get(url, timeout):
+        calls.append((url, timeout))
+        return FakeResp()
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+    r = client.post("/vision/debug/snap")
+    assert r.status_code == 200 and r.json() == {"ok": True, "board": {"ok": True}}
+    assert calls == [("http://10.0.0.5/snap", 3.0)]
+
+    def timeout_get(url, timeout):
+        raise httpx.ReadTimeout("slow")
+
+    monkeypatch.setattr(httpx, "get", timeout_get)
+    r = client.post("/vision/debug/snap")
+    assert r.status_code == 502 and "10.0.0.5" in r.json()["detail"]
