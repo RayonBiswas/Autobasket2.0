@@ -87,6 +87,11 @@ two-slot flash layout, which `platformio.ini` sets (`min_spiffs.csv`); in the Ar
 
 If Wi-Fi stays down for 30 minutes the board restarts itself once; that is the only self-reboot it does.
 
+### Snap now
+
+While on Wi-Fi the camera answers `http://<board-ip>/snap` (take and post a photo right away) and
+`http://<board-ip>/` (status JSON). The API's developer page at `/vision/debug` uses these; you can also curl them.
+
 Compile check from the terminal (optional): install arduino-cli with `winget install ArduinoSA.CLI`, then
 
 ```powershell

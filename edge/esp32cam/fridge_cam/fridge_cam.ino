@@ -14,6 +14,7 @@
     - Accepts over-the-air firmware updates on the local network (ArduinoOTA, hostname fridge-cam-<TRAY_POSITION>,
       password OTA_PASS), so the board never has to come off the shelf to be reflashed. Needs a two-slot
       flash layout: platformio.ini sets it; in the Arduino IDE pick Partition Scheme "Minimal SPIFFS".
+    - Answers GET /snap on port 80 (take a photo now, for the developer page) and GET / (status JSON).
 
   Copy config.h.example to config.h and fill it in. Status lines go to the USB serial monitor at 115200.
 */
@@ -22,6 +23,7 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ArduinoOTA.h>
+#include <WebServer.h>
 #include "esp_camera.h"
 #include "config.h"
 
@@ -128,6 +130,32 @@ void watchWifi(unsigned long now) {
     delay(100);
     ESP.restart();
   }
+}
+
+// ---- "Snap now" listener: the dev page asks the board for a photo. LAN only, no password: it can only
+// trigger the same authenticated post the board makes on its own. ----
+WebServer snapServer(80);
+bool snapStarted = false;
+bool snapRequested = false;
+
+void setupSnap() {
+  if (snapStarted || WiFi.status() != WL_CONNECTED) return;
+  snapServer.on("/snap", []() {
+    snapRequested = true;
+    snapServer.send(200, "application/json", "{\"ok\":true}");
+    logf("[snap] requested by %s", snapServer.client().remoteIP().toString().c_str());
+  });
+  snapServer.on("/", []() {
+    char body[160];
+    unsigned long now = millis();
+    snprintf(body, sizeof(body), "{\"tray\":%d,\"ip\":\"%s\",\"wifi\":\"%s\",\"uptime_s\":%lu,\"last_photo_s_ago\":%ld}",
+             TRAY_POSITION, WiFi.localIP().toString().c_str(), WiFi.status() == WL_CONNECTED ? "up" : "down",
+             now / 1000UL, lastPhotoPost ? (long)((now - lastPhotoPost) / 1000UL) : -1L);
+    snapServer.send(200, "application/json", body);
+  });
+  snapServer.begin();
+  snapStarted = true;
+  logf("[snap] listening on http://%s/snap", WiFi.localIP().toString().c_str());
 }
 
 void noteFailure() {
@@ -298,6 +326,8 @@ void loop() {
   if (WiFi.status() != WL_CONNECTED && (now % 10000) < 20) connectWifi();
   watchWifi(now);
   setupOta();
+  setupSnap();
+  if (snapStarted) snapServer.handleClient();
 
   if (now - lastStatus >= STATUS_EVERY_MS) {
     lastStatus = now;
@@ -311,8 +341,9 @@ void loop() {
 
   bool settled = changePending && now - changedAt >= SETTLE_MS;
   bool photoDue = PHOTO_EVERY_S > 0 && (lastPhotoPost == 0 || now - lastPhotoPost >= (unsigned long)PHOTO_EVERY_S * 1000UL);
-  if ((settled || photoDue) && canTry) {
+  if ((settled || photoDue || snapRequested) && (canTry || snapRequested)) {
     changePending = false;
+    snapRequested = false;
     bool ok = postReadings() && postPhoto();
     if (ok) { noteSuccess(); lastReadingsPost = now; lastPhotoPost = now; } else noteFailure();
   }
