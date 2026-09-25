@@ -138,7 +138,7 @@ stored in `vision_results` (only a hash of the photo is kept). The Shelves and C
 - **Different from what's assigned**: someone put curd where milk was; one tap fixes the assignment.
 
 Upload from a phone with `POST /vision/trays/{tray_id}/photo`, or from the fridge device with
-`POST /vision/device/trays/{position}/photo` (Phase 8 sends one per shelf on every door close). Without a key the
+`POST /vision/device/trays/{position}/photo` (Phase 8 sends one per shelf whenever a weight changes, and every 30 min). Without a key the
 endpoint answers 503 with the variables to set; it never guesses. `docs/screenshots/phase-7-sample-shelf.jpg` is a
 labelled test image the model reads correctly; a real fridge photo is the intended input.
 

@@ -65,7 +65,7 @@ async def device_photo(
     device: models.Device = Depends(current_device),
     db: Session = Depends(get_db),
 ):
-    """The fridge camera's photo of one tray after the door closes (device token)."""
+    """The fridge camera's photo of one tray after a weight change (device token)."""
     tray = db.query(models.Tray).filter_by(device_id=device.id, position=position).first()
     if tray is None:
         raise HTTPException(404, "No tray at that position")

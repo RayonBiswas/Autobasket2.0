@@ -4,9 +4,11 @@
   What it does
     - Listens to the Arduino scale node on a second UART (GPIO 14 = RX, GPIO 15 = TX) for "W,<slot>,<grams>".
     - Posts the latest weights to the API every READINGS_EVERY_S seconds.
-    - Watches the door reed switch on GPIO 13 (closed door = switch closed = LOW). When the door closes it
-      waits SETTLE_MS for the shelves to stop moving, posts the weights, then photographs the shelf with the
-      flash LED on and posts the JPEG to /vision/device/trays/<TRAY_POSITION>/photo.
+    - When any slot's weight jumps by WEIGHT_CHANGE_G or more (something was taken or put back) it waits
+      SETTLE_MS for the shelf to stop moving, posts the weights, then photographs the shelf with the flash LED
+      on and posts the JPEG to /vision/device/trays/<TRAY_POSITION>/photo.
+    - Also posts a photo once after boot and then every PHOTO_EVERY_S seconds, so the camera can be tested
+      before any scale is wired. No door switch is needed.
     - Never reboot-loops: no Wi-Fi or no API means keep the latest readings and retry with backoff.
 
   Copy config.h.example to config.h and fill it in. Status lines go to the USB serial monitor at 115200.
@@ -37,12 +39,10 @@
 #define PCLK_GPIO_NUM     22
 
 const int FLASH_PIN = 4;
-const int DOOR_PIN = 13;
 const int SCALE_RX_PIN = 14;
 const int SCALE_TX_PIN = 15;
 const int MAX_SLOTS = 8;
 
-const unsigned long DEBOUNCE_MS = 50;
 const unsigned long BACKOFF_MIN_MS = 5000;
 const unsigned long BACKOFF_MAX_MS = 300000;
 const unsigned long STATUS_EVERY_MS = 30000;
@@ -57,11 +57,10 @@ unsigned long nextTryAt = 0;
 unsigned long lastStatus = 0;
 bool cameraOk = false;
 
-int doorStable = HIGH;
-int doorLastRaw = HIGH;
-unsigned long doorChangedAt = 0;
-bool doorEventPending = false;
-unsigned long doorClosedAt = 0;
+float prevGrams[MAX_SLOTS];
+bool changePending = false;          // a slot moved; photograph once it settles
+unsigned long changedAt = 0;
+unsigned long lastPhotoPost = 0;     // 0 = never, so the first photo goes right after boot
 
 String scaleLine;
 
@@ -137,6 +136,12 @@ void handleScaleLine(const String &line) {
     int slot = line.substring(c1 + 1, c2).toInt();
     float g = line.substring(c2 + 1).toFloat();
     if (slot >= 1 && slot <= MAX_SLOTS) {
+      if (slotFresh[slot - 1] && fabs(g - prevGrams[slot - 1]) >= WEIGHT_CHANGE_G) {
+        changePending = true;         // keeps resetting while the weight is still moving
+        changedAt = millis();
+        logf("[scale] slot %d moved %.0f g; settling for %lu ms", slot, g - prevGrams[slot - 1], (unsigned long)SETTLE_MS);
+      }
+      prevGrams[slot - 1] = g;
       slotGrams[slot - 1] = g;
       slotFresh[slot - 1] = true;
       slotSeenAt[slot - 1] = millis();
@@ -227,23 +232,6 @@ bool initCamera() {
   return true;
 }
 
-// ---------- door ----------
-
-void pollDoor() {
-  int raw = digitalRead(DOOR_PIN);
-  if (raw != doorLastRaw) { doorLastRaw = raw; doorChangedAt = millis(); }
-  if (millis() - doorChangedAt < DEBOUNCE_MS || raw == doorStable) return;
-  doorStable = raw;
-  if (doorStable == LOW) {          // closed
-    doorClosedAt = millis();
-    doorEventPending = true;
-    logf("[door] closed; settling for %lu ms", (unsigned long)SETTLE_MS);
-  } else {
-    logf("[door] opened");
-    doorEventPending = false;
-  }
-}
-
 // ---------- main ----------
 
 void setup() {
@@ -252,8 +240,6 @@ void setup() {
   logf("[boot] AutoBasket fridge camera, tray %d", TRAY_POSITION);
   pinMode(FLASH_PIN, OUTPUT);
   digitalWrite(FLASH_PIN, LOW);
-  pinMode(DOOR_PIN, INPUT_PULLUP);
-  doorStable = doorLastRaw = digitalRead(DOOR_PIN);
   Serial1.begin(9600, SERIAL_8N1, SCALE_RX_PIN, SCALE_TX_PIN);
   cameraOk = initCamera();
   connectWifi();
@@ -261,7 +247,6 @@ void setup() {
 
 void loop() {
   pollScale();
-  pollDoor();
   unsigned long now = millis();
 
   if (WiFi.status() != WL_CONNECTED && (now % 10000) < 20) connectWifi();
@@ -270,16 +255,18 @@ void loop() {
     lastStatus = now;
     int fresh = 0;
     for (int i = 0; i < MAX_SLOTS; i++) if (slotFresh[i] && now - slotSeenAt[i] <= 30000) fresh++;
-    logf("[status] wifi=%s slots=%d door=%s heap=%u", WiFi.status() == WL_CONNECTED ? "up" : "down", fresh,
-         doorStable == LOW ? "closed" : "open", (unsigned)ESP.getFreeHeap());
+    logf("[status] wifi=%s slots=%d heap=%u", WiFi.status() == WL_CONNECTED ? "up" : "down", fresh,
+         (unsigned)ESP.getFreeHeap());
   }
 
   bool canTry = nextTryAt == 0 || (long)(now - nextTryAt) >= 0;
 
-  if (doorEventPending && now - doorClosedAt >= SETTLE_MS && canTry) {
-    doorEventPending = false;
+  bool settled = changePending && now - changedAt >= SETTLE_MS;
+  bool photoDue = PHOTO_EVERY_S > 0 && (lastPhotoPost == 0 || now - lastPhotoPost >= (unsigned long)PHOTO_EVERY_S * 1000UL);
+  if ((settled || photoDue) && canTry) {
+    changePending = false;
     bool ok = postReadings() && postPhoto();
-    if (ok) { noteSuccess(); lastReadingsPost = now; } else noteFailure();
+    if (ok) { noteSuccess(); lastReadingsPost = now; lastPhotoPost = now; } else noteFailure();
   }
 
   if (canTry && now - lastReadingsPost >= (unsigned long)READINGS_EVERY_S * 1000UL) {

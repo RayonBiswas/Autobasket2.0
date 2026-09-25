@@ -3,11 +3,11 @@
 | Folder / file | What it is |
 |---|---|
 | `arduino/scale_node/` | Arduino sketch. Reads up to 4 HX711 load-cell amplifiers, keeps calibration in EEPROM, prints grams once a second. |
-| `esp32cam/fridge_cam/` | ESP32-CAM sketch. Takes those grams over a serial link, watches the door switch, posts weights and a shelf photo to the API. |
+| `esp32cam/fridge_cam/` | ESP32-CAM sketch. Takes those grams over a serial link, posts weights to the API, and a shelf photo whenever a weight changes (and every 30 min). |
 | `simulator.py` | A fake fridge for your laptop. Drains slot weights over time and posts readings. Use it to demo the whole loop without hardware. |
 
 Two boards because the ESP32-CAM has almost no free pins once the camera is wired, while the HX711s need two
-pins each and like 5 V. The Arduino does the weighing; the ESP32-CAM does Wi-Fi, the camera and the door.
+pins each and like 5 V. The Arduino does the weighing; the ESP32-CAM does Wi-Fi and the camera. There is no door switch: a weight change is the trigger.
 
 ```
  load cells ──► HX711 ×4 ──► Arduino ──serial──► ESP32-CAM ──Wi-Fi──► API (/devices/me/readings, /vision/device/...)
@@ -17,7 +17,7 @@ pins each and like 5 V. The Arduino does the weighing; the ESP32-CAM does Wi-Fi,
 
 - Arduino Uno or Nano (5 V), one HX711 amplifier board per slot, one load cell (5 kg bar type is fine) per slot.
 - ESP32-CAM (AI-Thinker) with its OV2640 camera, plus a USB-to-serial adapter (FTDI/CH340, 3.3 V logic) to flash it.
-- A magnetic reed switch for the door, two resistors (1 kΩ and 2 kΩ) for the serial divider, a 5 V 2 A supply.
+- Two resistors (1 kΩ and 2 kΩ) for the serial divider, a 5 V 2 A supply.
 
 ## Wiring
 
@@ -43,11 +43,10 @@ Load cell to HX711: red → E+, black → E−, white → A−, green → A+ (sw
 Because the Arduino's D0/D1 are also its USB serial pins, unplug the ESP32 link (or just GPIO 15 → D0) while
 uploading a sketch to the Arduino.
 
-**Door and power:**
+**Power and light:**
 
 | What | Where |
 |---|---|
-| Reed switch | ESP32 GPIO 13 ↔ GND (magnet on the door; switch closed = door closed) |
 | Flash LED | built in on GPIO 4, used during the photo |
 | Power | 5 V into the ESP32-CAM's 5V pin (it draws up to ~300 mA with Wi-Fi + flash; do not power it from the Arduino's 3.3 V pin) |
 

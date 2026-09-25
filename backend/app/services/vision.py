@@ -103,7 +103,7 @@ def identify(image: bytes, mime: str, slot_count: int, catalog: list[str], calle
     prompt = PROMPT.format(n=slot_count, catalog=", ".join(sorted(set(catalog))))
     try:
         return _parse(caller(prompt, image, mime), slot_count)
-    except Exception as exc:  # fail soft: a vision outage must not break the door-close flow
+    except Exception as exc:  # fail soft: a vision outage must not break the photo flow
         log.warning("vision call failed: %s", exc)
         return None
 
