@@ -15,7 +15,7 @@ def _enable(monkeypatch, tmp_path, env="development"):
 
 
 def test_disabled_without_setting(monkeypatch, tmp_path):
-    monkeypatch.delenv("VISION_DEBUG_DIR", raising=False)
+    monkeypatch.setenv("VISION_DEBUG_DIR", "")  # blank = not configured; delenv would let the developer's .env through
     get_settings.cache_clear()
     assert vision_debug.enabled() is False
     vision_debug.write_latest(JPEG, {"tray_id": 1})
@@ -115,7 +115,7 @@ import httpx  # noqa: E402
 
 def test_debug_routes_404_when_disabled(app_client, monkeypatch):
     client, _ = app_client
-    monkeypatch.delenv("VISION_DEBUG_DIR", raising=False)
+    monkeypatch.setenv("VISION_DEBUG_DIR", "")  # blank = not configured; delenv would let the developer's .env through
     get_settings.cache_clear()
     for path in ("/vision/debug", "/vision/debug/latest.json", "/vision/debug/latest.jpg", "/vision/debug/weights"):
         assert client.get(path).status_code == 404, path
