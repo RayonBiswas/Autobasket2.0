@@ -104,3 +104,27 @@ def test_photo_endpoints(app_client, login, monkeypatch):
     r = client.post("/vision/device/trays/1/photo", files={"image": ("s.jpg", io.BytesIO(JPEG), "image/jpeg")}, headers=dev)
     assert r.status_code == 200 and r.json()["position"] == 1
     assert client.post("/vision/device/trays/9/photo", files={"image": ("s.jpg", io.BytesIO(JPEG), "image/jpeg")}, headers=dev).status_code == 404
+
+
+def test_openai_caller_caps_output(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    get_settings.cache_clear()
+    sent: dict = {}
+
+    class FakeResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"choices": [{"message": {"content": "{}"}}]}
+
+    def fake_post(url, json, headers, timeout):
+        sent.update(json)
+        return FakeResponse()
+
+    monkeypatch.setattr(vision.httpx, "post", fake_post)
+    assert vision._openai_caller("prompt", JPEG, "image/jpeg") == "{}"
+    assert sent["max_tokens"] == 400
+    assert sent["messages"][0]["content"][1]["image_url"]["url"].startswith("data:image/jpeg;base64,")

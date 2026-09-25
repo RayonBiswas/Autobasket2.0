@@ -133,6 +133,17 @@ Weights say *how much* is left; the camera says *what* it is. A photo of one she
 with the catalog names and a strict "JSON, one entry per slot" prompt. Each answer is matched to the catalog and
 stored in `vision_results` (only a hash of the photo is kept). The Shelves and Camera pages then show, per slot:
 
+#### Choosing a vision provider
+
+`.env.example` carries four ready blocks — NVIDIA NIM (demo), Google Gemini and Groq (free tiers for practice) and
+OpenRouter. Uncomment exactly one, restart the API. All four use the same prompt and code, so practice results
+predict demo results. Check any block with one photo:
+
+```powershell
+cd backend
+..\.venv\Scripts\python.exe scriptsision_smoke.py path	o\shelf.jpg 4 "milk,eggs,butter,paneer"
+```
+
 - **Camera and scale agree**: the model saw what you assigned.
 - **Not assigned yet**: an empty slot with a recognised item, one tap assigns it.
 - **Different from what's assigned**: someone put curd where milk was; one tap fixes the assignment.

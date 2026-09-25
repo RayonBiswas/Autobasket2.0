@@ -54,6 +54,7 @@ def _openai_caller(prompt: str, image: bytes, mime: str) -> str:
     body = {
         "model": model,
         "temperature": 0,
+        "max_tokens": 400,  # the answer is short JSON; without a cap some gateways reserve the model's whole budget
         "messages": [
             {
                 "role": "user",
