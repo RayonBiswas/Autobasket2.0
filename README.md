@@ -151,6 +151,8 @@ Set `VISION_DEBUG_DIR=some/folder` in `.env` (ignored in production), restart th
 photo with free in-browser detector boxes (COCO-SSD), the model's verdict per slot, live grams, and a **Snap now**
 button that asks the board for a fresh photo. Photos land only in that folder, never in the database.
 
+![Live camera viewer](docs/screenshots/vision-debug.png)
+
 - **Camera and scale agree**: the model saw what you assigned.
 - **Not assigned yet**: an empty slot with a recognised item, one tap assigns it.
 - **Different from what's assigned**: someone put curd where milk was; one tap fixes the assignment.
