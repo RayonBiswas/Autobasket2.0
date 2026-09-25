@@ -16,6 +16,7 @@ from app.database import Base  # noqa: E402
 def _no_real_llm(monkeypatch):
     """Never call a real LLM or vision model from tests, even when the developer's .env has a key."""
     monkeypatch.setenv("OPENAI_API_KEY", "")
+    monkeypatch.setenv("VISION_DEBUG_DIR", "")  # a developer's .env may enable the debug viewer; tests start with it off
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
     from app.core.config import get_settings
 
