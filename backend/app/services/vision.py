@@ -25,13 +25,20 @@ EMPTY_WORDS = {"", "empty", "nothing", "none", "unknown"}
 PROMPT = (
     "This is a photo of one shelf of a household fridge. The shelf has {n} slots, numbered 1 to {n} from left to right. "
     "For each slot say which grocery item sits there. Use ONLY names from this list when one fits: {catalog}. "
-    "If an item from the list is visible anywhere in the photo, name it even if the scene does not look like a fridge. "
+    "{scene}"
     'If a slot is empty answer "empty". If you cannot tell, answer "unknown". '
     'When you name an item also give "box" as [x, y, w, h], fractions of the image from 0 to 1 around that item; '
     'omit "box" for empty or unknown. '
     'Reply with JSON only, exactly like {{"slots":[{{"slot":1,"item":"milk","confidence":0.9,"box":[0.05,0.1,0.2,0.6]}}]}} '
     "with one entry per slot and confidence between 0 and 1."
 )
+# Only for desk tests with the developer viewer on: in production a blocked lens must stay "unknown", not become a guess.
+TEST_SCENE_HINT = "If an item from the list is visible anywhere in the photo, name it even if the scene does not look like a fridge. "
+
+
+def build_prompt(slot_count: int, catalog: list[str]) -> str:
+    scene = TEST_SCENE_HINT if get_settings().vision_debug_enabled else ""
+    return PROMPT.format(n=slot_count, catalog=", ".join(sorted(set(catalog))), scene=scene)
 
 
 Box = tuple[float, float, float, float]
@@ -134,7 +141,7 @@ def identify(image: bytes, mime: str, slot_count: int, catalog: list[str], calle
     caller = caller or (_openai_caller if configured() else None)
     if caller is None:
         return None
-    prompt = PROMPT.format(n=slot_count, catalog=", ".join(sorted(set(catalog))))
+    prompt = build_prompt(slot_count, catalog)
     try:
         return _parse(caller(prompt, image, mime), slot_count)
     except Exception as exc:  # fail soft: a vision outage must not break the photo flow

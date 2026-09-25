@@ -29,7 +29,7 @@ def main() -> int:
     print(f"provider: {s.openai_base_url}\nmodel:    {s.vision_model or s.openai_model}")
     started = time.time()
     try:
-        raw = vision._openai_caller(vision.PROMPT.format(n=slots, catalog=catalog), image, "image/jpeg")
+        raw = vision._openai_caller(vision.build_prompt(slots, [c.strip() for c in catalog.split(",") if c.strip()]), image, "image/jpeg")
     except Exception as exc:  # noqa: BLE001 - this script exists to show the failure
         print(f"FAILED after {time.time() - started:.1f}s: {exc}")
         return 1

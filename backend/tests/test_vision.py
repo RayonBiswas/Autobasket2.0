@@ -152,10 +152,18 @@ def test_identify_keeps_optional_box():
     assert got[2].item == "eggs" and got[2].box is None
 
 
-def test_prompt_asks_for_boxes_and_tolerates_non_fridge_scenes():
-    p = vision.PROMPT.format(n=4, catalog="milk")
+def test_prompt_asks_for_boxes_and_stays_strict_in_production(monkeypatch):
+    monkeypatch.setenv("VISION_DEBUG_DIR", "")
+    get_settings.cache_clear()
+    p = vision.build_prompt(4, ["milk"])
     assert '"box"' in p and "0 to 1" in p
-    assert "even if the scene does not look like a fridge" in p
+    assert "even if the scene does not look like a fridge" not in p
+
+
+def test_prompt_tolerates_test_scenes_only_with_debug_viewer(monkeypatch, tmp_path):
+    monkeypatch.setenv("VISION_DEBUG_DIR", str(tmp_path))
+    get_settings.cache_clear()
+    assert "even if the scene does not look like a fridge" in vision.build_prompt(4, ["milk"])
 
 
 def test_analyze_tray_detail_reports_guesses_and_timing(app_client, login):

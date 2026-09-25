@@ -1,5 +1,6 @@
 """Photos of a shelf → what is in each slot. Uploaded by the household (phone) or the fridge device (camera)."""
 
+import logging
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
@@ -10,6 +11,7 @@ from ..api.deps import current_device, current_household, get_db
 from ..core.config import get_settings
 from ..services import vision, vision_debug
 
+log = logging.getLogger(__name__)
 router = APIRouter()
 
 MAX_BYTES = 8 * 1024 * 1024
@@ -34,7 +36,10 @@ def _analyze(db: Session, tray: models.Tray, data: bytes, mime: str, device_ip: 
     result = vision.analyze_tray_detail(db, tray, data, mime)
     if result is None:
         raise HTTPException(502, "The vision model didn't answer. Try again in a moment")
-    _capture(db, tray, data, result, device_ip)
+    try:
+        _capture(db, tray, data, result, device_ip)
+    except Exception:  # noqa: BLE001 - the debug copy must never fail the real upload
+        log.warning("debug photo capture failed", exc_info=True)
     return {
         "tray_id": tray.id,
         "position": tray.position,

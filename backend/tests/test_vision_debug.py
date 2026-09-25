@@ -185,3 +185,21 @@ def test_snap_relays_to_board(app_client, monkeypatch, tmp_path):
     monkeypatch.setattr(httpx, "get", timeout_get)
     r = client.post("/vision/debug/snap")
     assert r.status_code == 502 and "10.0.0.5" in r.json()["detail"]
+
+
+def test_debug_save_failure_does_not_break_the_upload(app_client, login, monkeypatch, tmp_path):
+    client, _ = app_client
+    h = _auth(client, login, "dbg3@x.y")
+    seeded = client.post("/seed/dev", headers=h).json()
+    _enable(monkeypatch, tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    get_settings.cache_clear()
+    monkeypatch.setattr(vision, "identify", lambda *a, **k: [SlotGuess(1, "curd", 0.9)])
+
+    def boom(*a, **k):
+        raise PermissionError("latest.jpg is busy")
+
+    monkeypatch.setattr(vision_debug, "write_latest", boom)
+    r = _device_photo(client, seeded["device_token"])
+    assert r.status_code == 200, r.text
+    assert r.json()["slots"][0]["vision"]["item"] == "curd"
