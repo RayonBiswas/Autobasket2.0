@@ -63,6 +63,30 @@ GPIO 14/15 are the SD-card pins, so the SD slot is unavailable; the firmware doe
 4. Open the serial monitor at 115200 for the ESP32-CAM. You should see `[wifi] connected`, `[cam] ready`, then
    `[status] ... slots=4` once the Arduino is talking.
 
+With an **ESP32-CAM-MB** (the USB base board) there are no adapter wires and no IO0 jumper: dock the camera, plug in
+USB, upload. The MB hides the GPIO pins, so the final install needs the camera off the MB and on a breadboard or
+perfboard, powered by 5 V, with GPIO 14/15/GND going to the Arduino. That is why the firmware updates itself over
+Wi-Fi: flash once over USB, then never dock it again.
+
+### PlatformIO instead of the Arduino IDE
+
+Each sketch folder has a `platformio.ini`, so "Open Project" in PlatformIO on either folder gives Build, Upload and
+Serial Monitor buttons. `edge/arduino/scale_node` has environments for Nano (new and old bootloader) and Uno.
+
+### Updating the camera over Wi-Fi (OTA)
+
+The camera firmware listens for password-protected updates as `fridge-cam-<TRAY_POSITION>.local`. It needs the
+two-slot flash layout, which `platformio.ini` sets (`min_spiffs.csv`); in the Arduino IDE choose Partition Scheme
+"Minimal SPIFFS" for the first USB flash or OTA has nowhere to write.
+
+1. Set `OTA_PASS` in `config.h` to a long random string before the USB flash. An empty value disables OTA.
+2. Copy `ota_local.ini.example` to `ota_local.ini` (gitignored) and put the same password and the board's IP
+   (printed at boot as `[wifi] connected, ip ...`) in it.
+3. From `edge/esp32cam/fridge_cam`: `pio run -e esp32cam_ota -t upload`. The board logs `[ota] update starting`,
+   reboots, and comes back on the new firmware. Wi-Fi name, API URL and any code change all go this way.
+
+If Wi-Fi stays down for 30 minutes the board restarts itself once; that is the only self-reboot it does.
+
 Compile check from the terminal (optional): install arduino-cli with `winget install ArduinoSA.CLI`, then
 
 ```powershell

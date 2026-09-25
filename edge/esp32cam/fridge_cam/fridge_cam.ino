@@ -10,6 +10,10 @@
     - Also posts a photo once after boot and then every PHOTO_EVERY_S seconds, so the camera can be tested
       before any scale is wired. No door switch is needed.
     - Never reboot-loops: no Wi-Fi or no API means keep the latest readings and retry with backoff.
+      (One exception: if Wi-Fi has been down for 30 minutes straight it restarts once, in case the radio wedged.)
+    - Accepts over-the-air firmware updates on the local network (ArduinoOTA, hostname fridge-cam-<TRAY_POSITION>,
+      password OTA_PASS), so the board never has to come off the shelf to be reflashed. Needs a two-slot
+      flash layout: platformio.ini sets it; in the Arduino IDE pick Partition Scheme "Minimal SPIFFS".
 
   Copy config.h.example to config.h and fill it in. Status lines go to the USB serial monitor at 115200.
 */
@@ -17,8 +21,13 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
+#include <ArduinoOTA.h>
 #include "esp_camera.h"
 #include "config.h"
+
+#ifndef OTA_PASS
+#define OTA_PASS ""   // empty = OTA disabled
+#endif
 
 // ---- AI-Thinker ESP32-CAM pin map ----
 #define PWDN_GPIO_NUM     32
@@ -86,6 +95,39 @@ void connectWifi() {
   while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) delay(250);
   if (WiFi.status() == WL_CONNECTED) logf("[wifi] connected, ip %s", WiFi.localIP().toString().c_str());
   else logf("[wifi] not connected yet; will keep trying");
+}
+
+// ---- Over-the-air updates ----
+// Upload from the laptop with: pio run -e esp32cam_ota -t upload   (see platformio.ini / ota_local.ini)
+bool otaStarted = false;
+bool otaInProgress = false;
+
+void setupOta() {
+  if (otaStarted || WiFi.status() != WL_CONNECTED || strlen(OTA_PASS) == 0) return;
+  static char host[24];
+  snprintf(host, sizeof(host), "fridge-cam-%d", TRAY_POSITION);
+  ArduinoOTA.setHostname(host);
+  ArduinoOTA.setPassword(OTA_PASS);
+  ArduinoOTA.onStart([]() { otaInProgress = true; logf("[ota] update starting"); });
+  ArduinoOTA.onEnd([]() { logf("[ota] update done, rebooting"); });
+  ArduinoOTA.onError([](ota_error_t e) { otaInProgress = false; logf("[ota] error %u", (unsigned)e); });
+  ArduinoOTA.begin();
+  otaStarted = true;
+  logf("[ota] ready as %s.local", host);
+}
+
+// Restart once if Wi-Fi has been down for this long; a plain reconnect loop can wedge on some routers.
+const unsigned long WIFI_DOWN_RESTART_MS = 30UL * 60UL * 1000UL;
+unsigned long wifiDownSince = 0;
+
+void watchWifi(unsigned long now) {
+  if (WiFi.status() == WL_CONNECTED) { wifiDownSince = 0; return; }
+  if (wifiDownSince == 0) wifiDownSince = now ? now : 1;
+  else if (now - wifiDownSince >= WIFI_DOWN_RESTART_MS) {
+    logf("[wifi] down for 30 min, restarting");
+    delay(100);
+    ESP.restart();
+  }
 }
 
 void noteFailure() {
@@ -243,13 +285,19 @@ void setup() {
   Serial1.begin(9600, SERIAL_8N1, SCALE_RX_PIN, SCALE_TX_PIN);
   cameraOk = initCamera();
   connectWifi();
+  setupOta();
 }
 
 void loop() {
+  ArduinoOTA.handle();
+  if (otaInProgress) { delay(1); return; }
+
   pollScale();
   unsigned long now = millis();
 
   if (WiFi.status() != WL_CONNECTED && (now % 10000) < 20) connectWifi();
+  watchWifi(now);
+  setupOta();
 
   if (now - lastStatus >= STATUS_EVERY_MS) {
     lastStatus = now;

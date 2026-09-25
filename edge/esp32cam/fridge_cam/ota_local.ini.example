@@ -1,0 +1,6 @@
+; Copy to ota_local.ini (gitignored). Values for THIS board on YOUR network.
+[env:esp32cam_ota]
+; The board's IP (printed at boot as "[wifi] connected, ip ...") or its mDNS name fridge-cam-1.local
+upload_port = fridge-cam-1.local
+; Must match OTA_PASS in config.h
+upload_flags = --auth=change-me-before-flashing

@@ -28,3 +28,6 @@
 // 1 = accept any HTTPS certificate (the ESP32 has no root-CA store by default). Fine at home; for a public
 // server, set to 0 and add the server's root CA with secure.setCACert() in fridge_cam.ino.
 #define TLS_INSECURE     1
+
+// Password for over-the-air firmware updates from the laptop (any long random string). Empty = OTA off.
+#define OTA_PASS         "change-me-before-flashing"
