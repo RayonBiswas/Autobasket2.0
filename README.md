@@ -144,6 +144,13 @@ cd backend
 ..\.venv\Scripts\python.exe scriptsision_smoke.py path	o\shelf.jpg 4 "milk,eggs,butter,paneer"
 ```
 
+#### Watching the camera live (developer page)
+
+Set `VISION_DEBUG_DIR=some/folder` in `.env` (ignored in production), restart the API, and open
+`http://localhost:8000/vision/debug` — in Antigravity / VS Code use *Simple Browser: Show*. The page shows the latest
+photo with free in-browser detector boxes (COCO-SSD), the model's verdict per slot, live grams, and a **Snap now**
+button that asks the board for a fresh photo. Photos land only in that folder, never in the database.
+
 - **Camera and scale agree**: the model saw what you assigned.
 - **Not assigned yet**: an empty slot with a recognised item, one tap assigns it.
 - **Different from what's assigned**: someone put curd where milk was; one tap fixes the assignment.
